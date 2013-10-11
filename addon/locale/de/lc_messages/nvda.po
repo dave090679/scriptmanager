@@ -1,0 +1,227 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: loadappmodule 1.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-11 16:46+0100\n"
+"PO-Revision-Date: 2013-10-11 16:49+0100\n"
+"Last-Translator: david Parduhn <xkill85@gmx.net>\n"
+"Language-Team: David Parduhn <xkill85@gmx.net>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-KeywordsList: _;gettext;gettext_noop\n"
+"X-Poedit-Basepath: .\n"
+"X-Poedit-SourceCharset: UTF-8\n"
+"X-Generator: Poedit 1.5.7\n"
+"X-Poedit-SearchPath-0: ../../../..\n"
+
+#: ../../../../buildVars.py:17
+msgid "loads or creates an appmodule for the currently running application"
+msgstr "Lädt oder erstellt ein Modul für die aktuelle Anwendung"
+
+#: ../../../../buildVars.py:20
+msgid ""
+"This add-on uses an own-built editor to create an appmodule for the "
+"currently running aplication.\n"
+msgstr ""
+"Diese Erweiterung verwendet einen eigenen Editor, um ein Anwendungsmodul für "
+"die aktuelle anwendung zu erstellen oder zu bearbeiten.\n"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:110
+msgid "Creating a new Appmodule for {appname}"
+msgstr "neues Anwendungsmodul für {appname} wird angelegt"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:131
+msgid "&Open\tctrl+o"
+msgstr "ö&ffnen...\tstrg+o"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:131
+msgid "Open an appmodule"
+msgstr "öffnet ein Anwendungsmodul"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:132
+msgid "&Save\tctrl+s"
+msgstr "&Speichern\tstrg+s"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:132
+msgid "Save the appmodule"
+msgstr "speichert das Anwendungsmodul"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:134
+msgid "&Quit\tCtrl+Q"
+msgstr "&beenden\tstrg+Q"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:134
+msgid "Quit the Application"
+msgstr "beendet die anwendung"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:136
+msgid "cut\tctrl+x"
+msgstr "&ausschneiden\tstrg+x"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:137
+msgid "copy\tctrl+c"
+msgstr "&kopieren\tstrg+c"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:138
+msgid "paste\tctrl+v"
+msgstr "&einfügen\tstrg+v"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:139
+msgid "select all\tctrl+a"
+msgstr "alles &markieren\tstrg+a"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:140
+msgid "delete\tctrl+y"
+msgstr "&löschen\tstrg+y"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:141
+msgid "insert function\tctrl+i"
+msgstr "&Funktion einfügen\tstrg+i"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:142
+msgid "&find...\tctrl+f"
+msgstr "&suchen...\tstrg+f"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:145
+msgid "&run"
+msgstr "&ausführen"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:146
+msgid "&compile..."
+msgstr "&compilieren..."
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:147
+msgid "&File"
+msgstr "&Datei"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:148
+msgid "&Edit"
+msgstr "&bearbeiten"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:149
+msgid "&view"
+msgstr "&Ansicht"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:150
+msgid "&Help"
+msgstr "&Hilfe"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:187
+msgid "an Appmodule for {appname} was found at the following location(s):\n"
+msgstr ""
+"An den Folgenden Standorten wurde bereits ein Anwendungsmodul für {appname} "
+"gefunden:\n"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:190
+msgid "* in the sysconfig folder"
+msgstr "* im systemweiten Konfigurationsverzeichnis"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:195
+msgid "* within the following addons(s): {addons}\n"
+msgstr "* in den folgenden Erweiterungen: {addons}\n"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:198
+msgid ""
+"There's allready an Appmodule for {appname} included in to NVDA but it is "
+"only included as a compiled file and it can't be loaded into notepad for "
+"editing.\n"
+msgstr ""
+"Im Lieferumfang von NVDA ist bereits ein anwendungsmodul für {appname} "
+"enthalten, das jedoch nur in compilierter Form vorliegt und deshalb nicht "
+"zum Bearbeiten in den Editor geladen werden kann.\n"
+"Wenn Sie fortsetzen und ein neues Anwendungsmodul anlegen, wird das nvda-"
+"interne Anwendungsmodul nicht mehr funktionieren..\n"
+"Möchten Sie wirklich ein neues Anwendungsmodul anlegen?\n"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:199
+msgid ""
+"If you continue and create a new appmodule, the above one(s) will stop "
+"working.\n"
+"Do you really want to create a new Appmodule?"
+msgstr ""
+"Wenn Sie fortsetzen und ein neues Anwendungsmodul anlegen, werden die oben "
+"angegebenen Anwendungsmodule möglicherweise nicht mehr funktionieren. \n"
+"Möchten Sie wirklich ein neues Anwendungsmodul anlegen?"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:208
+msgid "insert function"
+msgstr "Funktion einfügen"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:215
+msgid "Save changes?"
+msgstr "Änderungen speichern?"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:227
+msgid "All files (*.*)"
+msgstr "alle Dateien (*.*)"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:227
+#: ../../../../addon/globalPlugins/scriptmanager.py:266
+msgid "appmodule source files (*.py)"
+msgstr "Anwendungsmodule und andere Quelldateien (*.py)"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:229
+msgid "Choose a file"
+msgstr "Wählen Sie eine Datei"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:244
+#: ../../../../addon/globalPlugins/scriptmanager.py:247
+msgid "Error opening file"
+msgstr "Fehler beim Öffnen der Datei"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:257
+#: ../../../../addon/globalPlugins/scriptmanager.py:278
+msgid "saved"
+msgstr "gespeichert"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:261
+#: ../../../../addon/globalPlugins/scriptmanager.py:282
+msgid "Error saving file"
+msgstr "Fehler beim speichern der Datei"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:266
+msgid "All files(*.*)"
+msgstr "alle Dateien (*.*)"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:268
+msgid "Save file as..."
+msgstr "Datei speichern unter..."
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:298
+msgid " modified"
+msgstr "geändert"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:304
+msgid "INS"
+msgstr "EINFG"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:315
+msgid ""
+"\tNVDA Script-manager\t\n"
+" (c) 2011 by David Parduhn\n"
+" portions copyright (C) jan bodnar 2005-2006"
+msgstr ""
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:315
+msgid "About nvda Script Manager"
+msgstr "Über den NVDA Script manager"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:320
+msgid "Save before Exit?"
+msgstr "Änderungen vor dem Schließen speichern?"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:332
+msgid "NVDA Script Manager"
+msgstr "NVDA Script-Manager"
+
+#: ../../../../addon/globalPlugins/scriptmanager.py:334
+msgid ""
+"tries to load the appmodule for the currently running application or creates "
+"a new file, if it doesn't exist yet."
+msgstr ""
+"Lädt ein Modul für die aktuelle Anwendung in den Editor oder erstellt ein "
+"neues Anwendungsmodul, falls noch keines existiert."
+
+#~ msgid "There's allready an Appmodule for "
+#~ msgstr "There's allready an Appmodule for "
