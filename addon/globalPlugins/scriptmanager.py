@@ -13,7 +13,7 @@ import wx
 import sys
 import inspect
 import addonHandler
-#addonHandler.initTranslation()
+addonHandler.initTranslation()
 #
 # Klasse von globalpluginhandler-globalplugin ableiten
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
@@ -123,9 +123,11 @@ class insertfunctionsdialog(wx.Dialog):
 		self.tree = wx.TreeCtrl(self, style=wx.TR_SINGLE | wx.TR_NO_BUTTONS)
 		rootnode = self.tree.AddRoot(text='root')
 		for moduleitem in sys.modules.keys():
-			modulenode = self.tree.AppendItem(parent=rootnode, text=moduleitem)
-			for functionentry in inspect.getmembers(sys.modules[moduleitem], inspect.isfunction):
-				functionnode = self.tree.AppendItem(parent=modulenode, text=functionentry[0])
+			functionlist = inspect.getmembers(sys.modules[moduleitem], inspect.isfunction)
+			if len(functionlist) > 0: 
+				modulenode = self.tree.AppendItem(parent=rootnode, text=moduleitem)
+				for functionentry in functionlist:
+					functionnode = self.tree.AppendItem(parent=modulenode, text=functionentry[0])
 		mainsizer.Add(self.tree)
 		buttons = self.CreateButtonSizer(wx.OK|wx.CANCEL)
 		mainsizer.Add(buttons)
@@ -148,7 +150,6 @@ class insertfunctionsdialog(wx.Dialog):
 		self.EndModal(wx.ID_CANCEL)
 
 class MyMenu(wx.Frame):
-	modify = False
 	def __init__(self, parent, id, title, scriptfile):
 		wx.Frame.__init__(self, parent, id, title, wx.DefaultPosition, wx.Size(380, 250))
 		menubar = wx.MenuBar()
@@ -162,7 +163,7 @@ class MyMenu(wx.Frame):
 		filemenu.Append(101, _('&Open')+'\tctrl+o', _('Open an appmodule'))
 		filemenu.Append(102, _('&Save')+'\tctrl+s', _('Save the appmodule'))
 		filemenu.AppendSeparator()
-		quit = wx.MenuItem(filemenu, 105, _('&Quit')+'\tCtrl+Q', _('Quit the Application'))
+		quit = wx.MenuItem(filemenu, 105, _('&Quit')+'\tAlt+F4', _('Quit the Application'))
 		filemenu.AppendItem(quit)
 		edit.Append(201, _('cut')+'\tctrl+x')
 		edit.Append(202, _('copy')+'\tctrl+c')
@@ -194,7 +195,6 @@ class MyMenu(wx.Frame):
 		tmptext = tmpfile.read()
 		self.text.WriteText(tmptext)
 		tmpfile.close()
-		self.modify = False
 		self.last_name_saved = scriptfile
 
 	def OnInsertFunction(self, event):
@@ -204,7 +204,7 @@ class MyMenu(wx.Frame):
 			ifd.Destroy()
 	def OnOpenFile(self, event):
 		file_name = os.path.basename(self.last_name_saved)
-		if self.modify:
+		if self.text.IsMmodified:
 			dlg = wx.MessageDialog(self, _('Save changes?'), '', wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION)
 			val = dlg.ShowModal()
 			if val == wx.ID_YES:
@@ -232,7 +232,6 @@ class MyMenu(wx.Frame):
 					self.text.WriteText(text)
 					self.last_name_saved = path
 					self.statusbar.SetStatusText('', 1)
-				self.modify = False
 			except IOError, error:
 				dlg = wx.MessageDialog(self, _('Error opening file')+'\n' + str(error))
 				dlg.ShowModal()
@@ -248,7 +247,6 @@ class MyMenu(wx.Frame):
 				file2.write(text)
 				file2.close()
 				self.statusbar.SetStatusText(os.path.basename(self.last_name_saved) + ' '+_('saved'), 0)
-				self.modify = False
 				self.statusbar.SetStatusText('', 1)
 			except IOError, error:
 				dlg = wx.MessageDialog(self, _('Error saving file')+'\n' + str(error))
@@ -269,7 +267,6 @@ class MyMenu(wx.Frame):
 				file2.close()
 				self.last_name_saved = os.path.basename(path)
 				self.statusbar.SetStatusText(self.last_name_saved + ' '+_('saved'), 0)
-				self.modify = False
 				self.statusbar.SetStatusText('', 1)
 			except IOError, error:
 				dlg = wx.MessageDialog(self, _('Error saving file')+'\n' + str(error))
@@ -287,7 +284,6 @@ class MyMenu(wx.Frame):
 	def OnSelectAll(self, event):
 		self.text.SelectAll()
 	def OnTextChanged(self, event):
-		self.modify = True
 		self.statusbar.SetStatusText(_(' modified'), 1)
 		event.Skip()
 	def OnKeyDown(self, event):
@@ -309,12 +305,12 @@ class MyMenu(wx.Frame):
 		dlg.ShowModal()
 		dlg.Destroy()
 	def OnQuit(self, event):
-		if self.modify:
+		if self.text.IsModified:
 			dlg = wx.MessageDialog(self, _('Save before Exit?'), '', wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION)
 			val = dlg.ShowModal()
 			if val == wx.ID_YES:
 				self.OnSaveFile(event)
-				if not self.modify:
+				if not self.text.IsModified:
 					self.Close()
 			elif val == wx.ID_CANCEL:
 				dlg.Destroy()
