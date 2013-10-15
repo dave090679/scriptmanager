@@ -1,1 +1,2 @@
-bd: Typo im beschreibenden Text behoben.
+- Logik von wx.__nit__ nach loadappmodule rausziehen
+- Code zum Öffnen des Scriptmanagers in Prozedur isolieren (EVTL. __init__ modifizieren

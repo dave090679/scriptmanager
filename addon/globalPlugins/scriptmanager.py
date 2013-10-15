@@ -190,12 +190,16 @@ class MyMenu(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnDelete, id=205)
 		self.Bind(wx.EVT_MENU, self.OnSelectAll, id=204)
 		self.Bind(wx.EVT_MENU, self.OnInsertFunction, id=206)
-		self.text = wx.TextCtrl(self, 1000, '', size=(-1, -1), style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER)
+		self.Bind(wx.EVT_KEY_DOWN,self.OnKeyDown)
+		self.text = wx.TextCtrl(parent=self, id=1000, value='', size=(-1, -1), style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER)
+		self.text.Bind(wx.EVT_TEXT,self.OnTextChanged)
 		tmpfile = open(scriptfile,'r')
 		tmptext = tmpfile.read()
 		self.text.WriteText(tmptext)
 		tmpfile.close()
 		self.last_name_saved = scriptfile
+		self.modify = False
+		self.text.SetSelection(0,0)
 
 	def OnInsertFunction(self, event):
 		ifd = insertfunctionsdialog(self, id=wx.ID_ANY, title=_('insert function'))
@@ -232,6 +236,8 @@ class MyMenu(wx.Frame):
 					self.text.WriteText(text)
 					self.last_name_saved = path
 					self.statusbar.SetStatusText('', 1)
+					self.modify = False
+					self.text.SetSelection(0,0)
 			except IOError, error:
 				dlg = wx.MessageDialog(self, _('Error opening file')+'\n' + str(error))
 				dlg.ShowModal()
@@ -248,6 +254,7 @@ class MyMenu(wx.Frame):
 				file2.close()
 				self.statusbar.SetStatusText(os.path.basename(self.last_name_saved) + ' '+_('saved'), 0)
 				self.statusbar.SetStatusText('', 1)
+				self.modify = False
 			except IOError, error:
 				dlg = wx.MessageDialog(self, _('Error saving file')+'\n' + str(error))
 				dlg.ShowModal()
@@ -268,6 +275,7 @@ class MyMenu(wx.Frame):
 				self.last_name_saved = os.path.basename(path)
 				self.statusbar.SetStatusText(self.last_name_saved + ' '+_('saved'), 0)
 				self.statusbar.SetStatusText('', 1)
+				self.Modify = False
 			except IOError, error:
 				dlg = wx.MessageDialog(self, _('Error saving file')+'\n' + str(error))
 				dlg.ShowModal()
@@ -285,6 +293,7 @@ class MyMenu(wx.Frame):
 		self.text.SelectAll()
 	def OnTextChanged(self, event):
 		self.statusbar.SetStatusText(_(' modified'), 1)
+		self.modify = True
 		event.Skip()
 	def OnKeyDown(self, event):
 		keycode = event.GetKeyCode()
@@ -305,13 +314,12 @@ class MyMenu(wx.Frame):
 		dlg.ShowModal()
 		dlg.Destroy()
 	def OnQuit(self, event):
-		if self.text.IsModified:
+		if self.modify==True:
 			dlg = wx.MessageDialog(self, _('Save before Exit?'), '', wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION)
 			val = dlg.ShowModal()
 			if val == wx.ID_YES:
 				self.OnSaveFile(event)
-				if not self.text.IsModified:
-					self.Close()
+				self.Close()
 			elif val == wx.ID_CANCEL:
 				dlg.Destroy()
 			else:
