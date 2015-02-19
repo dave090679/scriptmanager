@@ -1,0 +1,38 @@
+backend {
+	systemfileexists()
+	userfileexists()
+	prvidedbyaddons()
+	createscript()
+}
+
+frontend {
+	myframe {
+		mymenu {
+			file {
+				new
+				open
+				save
+				save as
+				quit
+				
+			}
+			edit {
+				cut
+				copy
+				paste
+				undo
+				redo
+				select all
+				inser t function...
+				find
+				find next
+				replace
+			}
+			help {
+				about
+			}
+		}
+	}
+	text
+	statusline
+}

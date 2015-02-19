@@ -1,0 +1,18 @@
+# todo list for scriptmanager: #
+** reorganize the treeview of the insert function dialog in one of the following ways:
+*** add a radio button (similar to the elements list in browse mode) so that the developer can select the treeview style (modules/functions, modules/classes/methods, objects/methods etc).
+*** reorganize the treeview as follows
+root
+	<module1>
+		<class1>
+			<method1>
+			<method2>
+			<property1
+			<property2>
+			[...]
+		[...]
+		<function1
+		<function2>
+		[...]
+	[...]
+
