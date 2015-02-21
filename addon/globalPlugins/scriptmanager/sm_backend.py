@@ -1,7 +1,13 @@
+import addonHandler
 import os
 import config
 import sys
-
+import api
+import appModuleHandler
+import ui
+import config
+focus=api.getFocusObject()
+appName=appModuleHandler.getAppNameFromProcessID(focus.processID,False)
 def userappmoduleexists(appname):
 	userconfigfile = config.getUserDefaultConfigPath()+chr(92)+'appModules'+chr(92)+appname+'.py'
 	if os.access(userconfigfile,os.F_OK): return userconfigfile
@@ -13,11 +19,22 @@ def systemappmoduleexists(appname):
 	else: return None
 
 def appmoduleprovidedbyaddon(appname):
-	l = list()
+	ret = None
 	for addon in addonHandler.getRunningAddons():
-		if os.access(addon.path+chr(92)+'appmodules'+chr(92)+appname+'.py',os.F_OK): l.append(addon.manifest['name'])
-	if len(l) > 0: return ', '.join(l)
-	else: return None
+		if os.access(addon.path+chr(92)+'appmodules'+chr(92)+appname+'.py',os.F_OK): ret = addon
+	return ret
+
+def copyappmodulefromaddon(appname, addon):
+	addonname = addon.manifest['name']
+	addonfullpath = addon.path+chr(92)+'appmodules'+chr(92)+appname+'.py'
+	userconfigfile = config.getUserDefaultConfigPath()+chr(92)+'appModules'+chr(92)+appName+'.py'
+	fd1 = open(addonfullpath,'r')
+	fd2 = open(userconfigfile,'a')
+	ui.message(_("copying appmodule for {appname} from addon {addonname} to user's config folder...").format(addonname=addonname, appname=appname))
+	for line in fd1:
+		fd2.write(line)
+	fd2.close()
+	fd1.close()
 
 def createnewappmodule(appname):
 	appmodule_template = [
@@ -38,23 +55,21 @@ def createnewappmodule(appname):
 		chr(9)+'desktop = api.getDesktopObject()',
 		chr(9)+'mouse = api.getMouseObject()'
 	]
-	if self.l != '':
-		if gui.messageBox(message=self.warning_msg,
-		style=wx.YES|wx.NO|wx.ICON_WARNING)==wx.NO: 
-			return
 	userconfigfile = config.getUserDefaultConfigPath()+chr(92)+'appModules'+chr(92)+appname+'.py'
 	fd1 = open(userconfigfile,'w')
+	ui.message(_('Creating a new Appmodule for {appname}').format(appname=appname))
 	for line in appmodule_template:
 		fd1.write(line+os.linesep)
 	fd1.close()
-	ui.message(_('Creating a new Appmodule for {appname}').format(appname=appname))
-	self.warning_msg = ''
+
+
 
 def copysystouser(appname):
 	userconfigfile = config.getUserDefaultConfigPath()+chr(92)+'appModules'+chr(92)+appName+'.py'
 	sysconfigfile = config.getSystemConfigPath()+chr(92)+'appModules'+chr(92)+appName+'.py'
 	fd1 = open(sysconfigfile,'r')
 	fd2 = open(userconfigfile,'a')
+	ui.message(_('copying app module for {appname} from system config folder to user folder...').format(appname=appname))
 	for line in fd1:
 		fd2.write(line)
 	fd2.close()

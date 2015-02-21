@@ -36,3 +36,15 @@ frontend {
 	text
 	statusline
 }
+
+Entscheidungstabelle zum Laden/Erstellen von Anwendungsmodulen
+
+B1: Benutzermodul vorhanden                 : jjjjnnnnn
+B2: Systemmodul vorhanden                   : jjnnjjnnn
+B3: Modul durch NVDA bereitgestellt         : jjjjjjjjn
+B4: Modul durch Erweiterungen bereitgestellt: jnjnjnjnn
+a1: neues Modul erstellen                   : --------x
+a2: Benutzermodul laden                     : xxxx-----   
+a3: Warnung anzeigen                        : ----xxxx-
+a4: Systemmodul für Benutzer kopieren       : -----x---
+a5: Modul aus Erweiterung für Benutzer kop. : ----x-x--      

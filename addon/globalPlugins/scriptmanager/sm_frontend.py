@@ -1,3 +1,4 @@
+import sys
 import gui
 import wx
 import inspect
@@ -8,7 +9,7 @@ class insertfunctionsdialog(wx.Dialog):
 		mainsizer = wx.BoxSizer(orient=wx.VERTICAL)
 		self.tree = wx.TreeCtrl(self, style=wx.TR_SINGLE | wx.TR_NO_BUTTONS)
 		rootnode = self.tree.AddRoot(text='root')
-		moduleslist = sys.modules.keys()
+		modulelist = sys.modules.keys()
 		for moduleitem in sorted(modulelist):
 			functionlist = inspect.getmembers(sys.modules[moduleitem], inspect.isfunction)
 			if len(functionlist) > 0: 
