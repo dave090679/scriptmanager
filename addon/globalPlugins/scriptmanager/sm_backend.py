@@ -6,8 +6,6 @@ import api
 import appModuleHandler
 import ui
 import config
-focus=api.getFocusObject()
-appName=appModuleHandler.getAppNameFromProcessID(focus.processID,False)
 def userappmoduleexists(appname):
 	userconfigfile = config.getUserDefaultConfigPath()+chr(92)+'appModules'+chr(92)+appname+'.py'
 	if os.access(userconfigfile,os.F_OK): return userconfigfile

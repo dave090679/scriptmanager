@@ -24,23 +24,31 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	}
 	# und nun folgt das eigentliche Script. Der name des Scripts stimmt zwar nicht ganz mit dem oben angegebenen Namen ueberein (das "Script_" fehlt, das stimmt aber so:-).
 	def script_scriptmanager(self, gesture):
-		if  not appModuleHandler.doesAppModuleExist(sm_backend.appName):
-			sm_backend.createnewappmodule(sm_backend.appName)
+		focus=api.getFocusObject()
+		appname=appModuleHandler.getAppNameFromProcessID(focus.processID,False)
+		load = False
+		if  not appModuleHandler.doesAppModuleExist(appname):
+			sm_backend.createnewappmodule(appname)
+			load = True
 		else:
-			if not sm_backend.userappmoduleexists(sm_backend.appName):
-				addon = sm_backend.appmoduleprovidedbyaddon(sm_backend.appName)
+			if not sm_backend.userappmoduleexists(appname):
+				addon = sm_backend.appmoduleprovidedbyaddon(appname)
 				if addon: 
-					sm_backend.copyfromaddon(addon=addon, appname=sm_backend.appName)
+					sm_backend.copyfromaddon(addon=addon, appname=appname)
+					load = True
 				else:
-					if sm_backend.systemappmoduleexists(sm_backend.appName):
-						sm_backend.copysystouser(sm_backend.appName)
-					else:
-						msg = _("""There's allready an Appmodule for {appname} included in to NVDA but it is only included as a compiled file and it can't be loaded into the script manager for editing.\n
-If you continue and create a new appmodule, the above one(s) will stop working.\nDo you really want to create a new Appmodule?""").format(appname=sm_backend.appName)
-						if wx.CallAfter(gui.messageBox, message=msg, style=wx.YES|wx.NO|wx.ICON_WARNING)==wx.NO: return
-		wx.CallAfter(self.loadappmodule, appModuleHandler.getAppNameFromProcessID(api.getFocusObject().processID,False))
-	# Unsere Funktion loadappmodule muss ein Argument entgegennehmen, das unser globales Plug-in darstellt, weil sie Bestandteil des globalen Plug-ins ist.
+					if sm_backend.systemappmoduleexists(appname):
+						sm_backend.copysystouser(appname)
+						load = True
+			else:
+				load = True
+		msg = _("""There's allready an Appmodule for {appname} included in to NVDA but it is only included as a compiled file and it can't be loaded into the script manager for editing.\n
+If you continue and create a new appmodule, the above one(s) will stop working.\nDo you really want to create a new Appmodule?""").format(appname=appname)
+		if not load:
+			load = wx.CallAfter(gui.messageBox, message=msg, style=wx.YES|wx.NO|wx.ICON_WARNING)==wx.YES
+		if load: wx.CallAfter(self.loadappmodule, appname)
+
 	def loadappmodule(self, appName):
-		userconfigfile = config.getUserDefaultConfigPath()+chr(92)+'appModules'+chr(92)+sm_backend.appName+'.py'
+		userconfigfile = config.getUserDefaultConfigPath()+chr(92)+'appModules'+chr(92)+appName+'.py'
 		frame = sm_frontend.MyMenu(None, -1, _('NVDA Script Manager'), userconfigfile)
 		frame.Show(True)
