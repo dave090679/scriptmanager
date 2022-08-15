@@ -2,19 +2,199 @@ msgid ""
 msgstr ""
 "Project-Id-Version: loadappmodule 1.1\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-10-12 18:02+0100\n"
-"PO-Revision-Date: 2013-10-12 18:02+0100\n"
+"POT-Creation-Date: 2022-08-15 20:34+0200\n"
+"PO-Revision-Date: 2022-08-15 20:44+0200\n"
 "Last-Translator: david Parduhn <xkill85@gmx.net>\n"
 "Language-Team: David Parduhn <xkill85@gmx.net>\n"
+"Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Poedit-KeywordsList: _;gettext;gettext_noop\n"
 "X-Poedit-Basepath: .\n"
 "X-Poedit-SourceCharset: UTF-8\n"
-"X-Generator: Poedit 1.5.7\n"
+"X-Generator: Poedit 2.4.3\n"
 "X-Poedit-SearchPath-0: ../../../..\n"
 
+#: ../../../../addon/globalPlugins/scriptmanager/__init__.py:41
+#, python-brace-format
+msgid ""
+"There's allready an Appmodule for {appname} included in to NVDA but it is "
+"only included as a compiled file and it can't be loaded into the script "
+"manager for editing."
+msgstr ""
+"Im Lieferumfang von NVDA ist bereits ein anwendungsmodul für {appname} "
+"enthalten, das jedoch nur in compilierter Form vorliegt und deshalb nicht "
+"zum Bearbeiten in den Editor geladen werden kann."
+
+#: ../../../../addon/globalPlugins/scriptmanager/__init__.py:47
+msgid "NVDA Script Manager"
+msgstr "NVDA Script-Manager"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_backend.py:27
+#, python-brace-format
+msgid ""
+"copying appmodule for {appname} from addon {addonname} to user's config "
+"folder..."
+msgstr ""
+"Das Anwendungsmodul für {appname} wird aus der Erweiterung {addonname} in "
+"den Konfigurationsordner des Benutzers kopiert..."
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_backend.py:36
+msgid "A part of NonVisual Desktop Access (NVDA)"
+msgstr "Ein Teil von NonVisual Desktop Access (NVDA)"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_backend.py:37
+msgid "Copyright (C) 2006-2012 NVDA Contributors"
+msgstr "Copyright (C) 2006-2012 NVDA Mitwirkende"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_backend.py:38
+msgid "This file is covered by the GNU General Public License."
+msgstr "Diese Datei unterliegt der GNU General Public License."
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_backend.py:39
+msgid "See the file COPYING for more details."
+msgstr "Weitere Informationen finden Sie in der Datei COPYING."
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_backend.py:43
+msgid "some snapshot variables similar to these in the python console"
+msgstr "Einige Snapshot-Variablen, die denen in der Python-Konsole ähneln"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_backend.py:54
+#, python-brace-format
+msgid "Creating a new Appmodule for {appname}"
+msgstr "neues Anwendungsmodul für {appname} wird angelegt"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:54
+msgid "&Open"
+msgstr "ö&ffnen..."
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:54
+msgid "Open an appmodule"
+msgstr "öffnet ein Anwendungsmodul"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:55
+msgid "&Save"
+msgstr "&speichern"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:55
+msgid "Save the appmodule"
+msgstr "speichert das Anwendungsmodul"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:57
+msgid "&Quit"
+msgstr "&beenden"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:57
+msgid "Quit the Application"
+msgstr "beendet die anwendung"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:59
+msgid "cut"
+msgstr "&ausschneiden"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:60
+msgid "copy"
+msgstr "&kopieren"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:61
+msgid "paste"
+msgstr "&einfügen"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:62
+msgid "select all"
+msgstr "alles &markieren"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:63
+msgid "delete"
+msgstr "&löschen"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:64
+msgid "insert function..."
+msgstr "Funktion einfügen..."
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:70
+msgid "&File"
+msgstr "&Datei"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:71
+msgid "&Edit"
+msgstr "&bearbeiten"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:73
+msgid "&Help"
+msgstr "&Hilfe"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:96
+msgid "insert function"
+msgstr "Funktion einfügen"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:103
+msgid "Save changes?"
+msgstr "Änderungen speichern?"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:115
+msgid "All files (*.*)"
+msgstr "alle Dateien (*.*)"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:115
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:152
+msgid "appmodule source files (*.py)"
+msgstr "Anwendungsmodule und andere Quelldateien (*.py)"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:117
+msgid "Choose a file"
+msgstr "Wählen Sie eine Datei"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:133
+msgid "Error opening file"
+msgstr "Fehler beim Öffnen der Datei"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:143
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:164
+msgid "saved"
+msgstr "gespeichert"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:147
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:168
+msgid "Error saving file"
+msgstr "Fehler beim speichern der Datei"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:152
+msgid "All files(*.*)"
+msgstr "alle Dateien (*.*)"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:154
+msgid "Save file as..."
+msgstr "Datei speichern unter..."
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:183
+msgid " modified"
+msgstr "geändert"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:190
+msgid "INS"
+msgstr "EINFG"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:201
+msgid ""
+"\tNVDA Script-manager\t\n"
+" (c) 2011 by David Parduhn\n"
+" portions copyright (C) jan bodnar 2005-2006"
+msgstr ""
+"\tNVDA Skript-Manager\t\n"
+" (c) 2011 von David Parduhn\n"
+" Teile Copyright (C) Jan Bodnar 2005-2006"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:201
+msgid "About nvda Script Manager"
+msgstr "Über den NVDA Script manager"
+
+#: ../../../../addon/globalPlugins/scriptmanager/sm_frontend.py:206
+msgid "Save before Exit?"
+msgstr "Änderungen vor dem Schließen speichern?"
+
+#. TRANSLATORS: Summary for this add-on to be shown on installation and add-on information.
 #: ../../../../buildVars.py:17
 msgid "loads or creates an appmodule for the currently running application"
 msgstr "Lädt oder erstellt ein Modul für die aktuelle Anwendung"
@@ -27,201 +207,45 @@ msgstr ""
 "Diese Erweiterung verwendet einen eigenen Editor, um ein Anwendungsmodul für "
 "die aktuelle anwendung zu erstellen oder zu bearbeiten.\n"
 
-#: ../../../../addon/globalPlugins/scriptmanager.py:70
-msgid "Creating a new Appmodule for {appname}"
-msgstr "neues Anwendungsmodul für {appname} wird angelegt"
+#~ msgid "an Appmodule for {appname} was found at the following location(s):\n"
+#~ msgstr ""
+#~ "An den Folgenden Standorten wurde bereits ein Anwendungsmodul für "
+#~ "{appname} gefunden:\n"
 
-#: ../../../../addon/globalPlugins/scriptmanager.py:99
-msgid "an Appmodule for {appname} was found at the following location(s):\n"
-msgstr ""
-"An den Folgenden Standorten wurde bereits ein Anwendungsmodul für {appname} "
-"gefunden:\n"
+#~ msgid "* in the sysconfig folder"
+#~ msgstr "* im systemweiten Konfigurationsverzeichnis"
 
-#: ../../../../addon/globalPlugins/scriptmanager.py:102
-msgid "* in the sysconfig folder"
-msgstr "* im systemweiten Konfigurationsverzeichnis"
+#~ msgid "* within the following addons(s): {addons}\n"
+#~ msgstr "* in den folgenden Erweiterungen: {addons}\n"
 
-#: ../../../../addon/globalPlugins/scriptmanager.py:107
-msgid "* within the following addons(s): {addons}\n"
-msgstr "* in den folgenden Erweiterungen: {addons}\n"
+#~ msgid ""
+#~ "If you continue and create a new appmodule, the above one(s) will stop "
+#~ "working.\n"
+#~ "Do you really want to create a new Appmodule?"
+#~ msgstr ""
+#~ "Wenn Sie fortsetzen und ein neues Anwendungsmodul anlegen, werden die "
+#~ "oben angegebenen Anwendungsmodule möglicherweise nicht mehr "
+#~ "funktionieren. \n"
+#~ "Möchten Sie wirklich ein neues Anwendungsmodul anlegen?"
 
-#: ../../../../addon/globalPlugins/scriptmanager.py:110
-msgid ""
-"There's allready an Appmodule for {appname} included in to NVDA but it is "
-"only included as a compiled file and it can't be loaded into notepad for "
-"editing.\n"
-msgstr ""
-"Im Lieferumfang von NVDA ist bereits ein anwendungsmodul für {appname} "
-"enthalten, das jedoch nur in compilierter Form vorliegt und deshalb nicht "
-"zum Bearbeiten in den Editor geladen werden kann.\n"
-"Wenn Sie fortsetzen und ein neues Anwendungsmodul anlegen, wird das nvda-"
-"interne Anwendungsmodul nicht mehr funktionieren..\n"
-"Möchten Sie wirklich ein neues Anwendungsmodul anlegen?\n"
+#~ msgid ""
+#~ "tries to load the appmodule for the currently running application or "
+#~ "creates a new file, if it doesn't exist yet."
+#~ msgstr ""
+#~ "Lädt ein Modul für die aktuelle Anwendung in den Editor oder erstellt ein "
+#~ "neues Anwendungsmodul, falls noch keines existiert."
 
-#: ../../../../addon/globalPlugins/scriptmanager.py:111
-msgid ""
-"If you continue and create a new appmodule, the above one(s) will stop "
-"working.\n"
-"Do you really want to create a new Appmodule?"
-msgstr ""
-"Wenn Sie fortsetzen und ein neues Anwendungsmodul anlegen, werden die oben "
-"angegebenen Anwendungsmodule möglicherweise nicht mehr funktionieren. \n"
-"Möchten Sie wirklich ein neues Anwendungsmodul anlegen?"
+#~ msgid "&find..."
+#~ msgstr "&suchen..."
 
-#: ../../../../addon/globalPlugins/scriptmanager.py:114
-msgid "NVDA Script Manager"
-msgstr "NVDA Script-Manager"
+#~ msgid "&run"
+#~ msgstr "&ausführen"
 
-#: ../../../../addon/globalPlugins/scriptmanager.py:116
-msgid ""
-"tries to load the appmodule for the currently running application or creates "
-"a new file, if it doesn't exist yet."
-msgstr ""
-"Lädt ein Modul für die aktuelle Anwendung in den Editor oder erstellt ein "
-"neues Anwendungsmodul, falls noch keines existiert."
+#~ msgid "&compile..."
+#~ msgstr "&compilieren..."
 
-#: ../../../../addon/globalPlugins/scriptmanager.py:162
-msgid "&Open"
-msgstr "ö&ffnen..."
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:162
-msgid "Open an appmodule"
-msgstr "öffnet ein Anwendungsmodul"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:163
-msgid "&Save"
-msgstr "&speichern"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:163
-msgid "Save the appmodule"
-msgstr "speichert das Anwendungsmodul"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:165
-msgid "&Quit"
-msgstr "&beenden"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:165
-msgid "Quit the Application"
-msgstr "beendet die anwendung"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:167
-msgid "cut"
-msgstr "&ausschneiden"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:168
-msgid "copy"
-msgstr "&kopieren"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:169
-msgid "paste"
-msgstr "&einfügen"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:170
-msgid "select all"
-msgstr "alles &markieren"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:171
-msgid "delete"
-msgstr "&löschen"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:172
-msgid "insert function..."
-msgstr "Funktion einfügen..."
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:173
-msgid "&find..."
-msgstr "&suchen..."
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:176
-msgid "&run"
-msgstr "&ausführen"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:177
-msgid "&compile..."
-msgstr "&compilieren..."
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:178
-msgid "&File"
-msgstr "&Datei"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:179
-msgid "&Edit"
-msgstr "&bearbeiten"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:180
-msgid "&view"
-msgstr "&Ansicht"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:181
-msgid "&Help"
-msgstr "&Hilfe"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:201
-msgid "insert function"
-msgstr "Funktion einfügen"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:208
-msgid "Save changes?"
-msgstr "Änderungen speichern?"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:220
-msgid "All files (*.*)"
-msgstr "alle Dateien (*.*)"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:220
-#: ../../../../addon/globalPlugins/scriptmanager.py:259
-msgid "appmodule source files (*.py)"
-msgstr "Anwendungsmodule und andere Quelldateien (*.py)"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:222
-msgid "Choose a file"
-msgstr "Wählen Sie eine Datei"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:237
-#: ../../../../addon/globalPlugins/scriptmanager.py:240
-msgid "Error opening file"
-msgstr "Fehler beim Öffnen der Datei"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:250
-#: ../../../../addon/globalPlugins/scriptmanager.py:271
-msgid "saved"
-msgstr "gespeichert"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:254
-#: ../../../../addon/globalPlugins/scriptmanager.py:275
-msgid "Error saving file"
-msgstr "Fehler beim speichern der Datei"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:259
-msgid "All files(*.*)"
-msgstr "alle Dateien (*.*)"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:261
-msgid "Save file as..."
-msgstr "Datei speichern unter..."
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:291
-msgid " modified"
-msgstr "geändert"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:297
-msgid "INS"
-msgstr "EINFG"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:308
-msgid ""
-"\tNVDA Script-manager\t\n"
-" (c) 2011 by David Parduhn\n"
-" portions copyright (C) jan bodnar 2005-2006"
-msgstr ""
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:308
-msgid "About nvda Script Manager"
-msgstr "Über den NVDA Script manager"
-
-#: ../../../../addon/globalPlugins/scriptmanager.py:313
-msgid "Save before Exit?"
-msgstr "Änderungen vor dem Schließen speichern?"
+#~ msgid "&view"
+#~ msgstr "&Ansicht"
 
 #~ msgid "&Open\tctrl+o"
 #~ msgstr "ö&ffnen...\tstrg+o"

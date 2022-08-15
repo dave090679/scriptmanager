@@ -2,6 +2,9 @@ import sys
 import gui
 import wx
 import inspect
+import addonHandler
+addonHandler.initTranslation()
+
 class insertfunctionsdialog(wx.Dialog):
 	functionstring = ''
 	def __init__(self, parent, id, title):
@@ -25,7 +28,7 @@ class insertfunctionsdialog(wx.Dialog):
 	def onOk(self, event):
 		tmpfunction = self.tree.GetItemText(self.tree.GetItemParent(self.tree.GetSelection()))+'.'
 		tmpfunction = tmpfunction+self.tree.GetItemText(self.tree.GetSelection())+'('
-		args = inspect.getargspec(sys.modules[self.tree.GetItemText(self.tree.GetItemParent(self.tree.GetSelection()))].__dict__[self.tree.GetItemText(self.tree.GetSelection())])[0]
+		args = inspect.getfullargspec(sys.modules[self.tree.GetItemText(self.tree.GetItemParent(self.tree.GetSelection()))].__dict__[self.tree.GetItemText(self.tree.GetSelection())])[0]
 		for x in range(len(args)):
 			tmpfunction = tmpfunction +args[x]
 			if x < len(args)-1:
@@ -59,14 +62,14 @@ class MyMenu(wx.Frame):
 		edit.Append(204, _('select all')+'\tctrl+a')
 		edit.Append(205, _('delete')+'\tctrl+y')
 		edit.Append(206, _('insert function...')+'\tctrl+i')
-		edit.Append(207, _('&find...')+'\tctrl+f')
+		#edit.Append(207, _('&find...')+'\tctrl+f')
 		#edit.Append(208, _('find next')+'\tf3')
 		#edit.Append(206, _('find previous')+'\tshift+f3')
-		run.Append(501,_('&run'))
-		run.Append(502,_('&compile...'))
+		#run.Append(501,_('&run'))
+		#run.Append(502,_('&compile...'))
 		menubar.Append(filemenu, _('&File'))
 		menubar.Append(edit, _('&Edit'))
-		menubar.Append(view, _('&view'))
+		#menubar.Append(view, _('&view'))
 		menubar.Append(help, _('&Help'))
 		self.SetMenuBar(menubar)
 		self.Centre()
@@ -126,10 +129,7 @@ class MyMenu(wx.Frame):
 					self.statusbar.SetStatusText('', 1)
 					self.modify = False
 					self.text.SetSelection(0,0)
-			except IOError, error:
-				dlg = wx.MessageDialog(self, _('Error opening file')+'\n' + str(error))
-				dlg.ShowModal()
-			except UnicodeDecodeError, error:
+			except error:
 				dlg = wx.MessageDialog(self, _('Error opening file')+'\n' + str(error))
 				dlg.ShowModal()
 		open_dlg.Destroy()
@@ -143,7 +143,7 @@ class MyMenu(wx.Frame):
 				self.statusbar.SetStatusText(os.path.basename(self.last_name_saved) + ' '+_('saved'), 0)
 				self.statusbar.SetStatusText('', 1)
 				self.modify = False
-			except IOError, error:
+			except error:
 				dlg = wx.MessageDialog(self, _('Error saving file')+'\n' + str(error))
 				dlg.ShowModal()
 		else:
@@ -164,7 +164,7 @@ class MyMenu(wx.Frame):
 				self.statusbar.SetStatusText(self.last_name_saved + ' '+_('saved'), 0)
 				self.statusbar.SetStatusText('', 1)
 				self.Modify = False
-			except IOError, error:
+			except error:
 				dlg = wx.MessageDialog(self, _('Error saving file')+'\n' + str(error))
 				dlg.ShowModal()
 		save_dlg.Destroy()
