@@ -14,13 +14,13 @@ addon_info = {
 	"addon-name" : "scriptmanager",
 	# Add-on summary, usually the user visible name of the addon.
 	# TRANSLATORS: Summary for this add-on to be shown on installation and add-on information.
-	"addon-summary" : _("loads or creates an appmodule for the currently running application"),
+	"addon-summary" : _("script manager"),
 	# Add-on description
 	# Translators: Long description to be shown for this add-on on add-on information from add-ons manager
 	"addon-description" : _("""This add-on uses an own-built editor to create an appmodule for the currently running aplication.
 """),
 	# version
-	"addon-version" : "0.1",
+	"addon-version" : "0.2",
 	# Author(s)
 	"addon-author" : "David Parduhn <xkill85@gmx.net>",
 	# URL for the add-on documentation support
