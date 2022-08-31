@@ -46,7 +46,8 @@ def createnewmodule(moduletype, modulename, createfile):
 		'import api',
 		'from scriptHandler import script',
 		'import addonHandler',
-		'addonHandler.initTTranslation()',
+		'# '+_('remove the comment (#) sign from the next line if (and when) the file belongs to an addon. This will enable localization (translation) features. in your file. See NVDA addon development guide for more info.'),
+		'#addonHandler.initTranslation()',
 		'class '+moduletype.replace(l, u, 1)+'('+moduletype+'Handler.'+moduletype.replace(l, u, 1)+'):']
 	if moduletype in ['appModule', 'globalPlugin']:
 		module_template += [chr(9)+'# '+_('some snapshot variables similar to these in the python console'),

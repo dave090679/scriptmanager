@@ -32,6 +32,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			sm_backend.createnewmodule('appModule', self.appname, True)
 			load = True
 		else:
+			load = sm_backend.userappmoduleexists(self.appname)
 			if not sm_backend.userappmoduleexists(self.appname):
 				addon = sm_backend.appmoduleprovidedbyaddon(self.appname)
 				if addon: 
