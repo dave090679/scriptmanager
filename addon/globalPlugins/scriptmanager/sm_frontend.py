@@ -72,6 +72,8 @@ class scriptmanager_mainwindow(wx.Frame):
 		filenew.Append(113, _('braille display driver'))
 		filenew.Append(114, _('speech synthesizer driver'))
 		filenew.Append(115, _('visual enhancement provider'))
+		edit.Append(200, _('undo')+'\tctrl+z')
+		edit.Append(212, _('redo')+'\tctrl+y')
 		edit.Append(201, _('cut')+'\tctrl+x')
 		edit.Append(202, _('copy')+'\tctrl+c')
 		edit.Append(203, _('paste')+'\tctrl+v')
@@ -103,6 +105,8 @@ class scriptmanager_mainwindow(wx.Frame):
 		self.Bind(wx.EVT_MENU, self.OnOpenFile, id=101)
 		self.Bind(wx.EVT_MENU, self.OnSaveFile, id=102)
 		self.Bind(wx.EVT_MENU, self.OnSaveAsFile, id=103)
+		self.Bind(wx.EVT_MENU, self.OnUndo, id=200)
+		self.Bind(wx.EVT_MENU, self.OnRedo, id=212)
 		self.Bind(wx.EVT_MENU, self.OnCut, id=201)
 		self.Bind(wx.EVT_MENU, self.OnCopy, id=202)
 		self.Bind(wx.EVT_MENU, self.OnPaste, id=203)
@@ -459,6 +463,11 @@ class scriptmanager_mainwindow(wx.Frame):
 				dlg = wx.MessageDialog(self, _('Error saving file')+'\n' + str(error))
 				dlg.ShowModal()
 		save_dlg.Destroy()
+	def OnUndo(self, event):
+		self.text.Undo()
+	def OnRedo(self, event):
+		self.text.Redo()
+
 	def OnCut(self, event):
 		self.text.Cut()
 	def OnCopy(self, event):
