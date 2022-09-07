@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: loadappmodule 1.1\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2022-09-01 10:30+0200\n"
-"PO-Revision-Date: 2022-09-01 10:32+0200\n"
+"PO-Revision-Date: 2022-09-07 10:32+0200\n"
 "Last-Translator: david Parduhn <xkill85@gmx.net>\n"
 "Language-Team: David Parduhn <xkill85@gmx.net>\n"
 "Language: de\n"
@@ -64,7 +64,7 @@ msgid ""
 "in your file. See NVDA addon development guide for more info."
 msgstr ""
 "Entfernen Sie das Kommentarzeichen (#) aus der nächsten Zeile, wenn (und "
-"wann) die Datei zu einem Addon gehört. Dadurch werden "
+"sobald) die Datei zu einem Addon gehört. Dadurch werden "
 "Lokalisierungsfunktionen (Übersetzungsfunktionen) in Ihrer Datei aktiviert. "
 "Weitere Informationen finden Sie im Entwicklungshandbuch für NVDA-Addons."
 
@@ -75,11 +75,11 @@ msgstr "Einige Snapshot-Variablen, die denen in der Python-Konsole ähneln"
 #: addon/globalPlugins/scriptmanager/sm_backend.py:66
 #, python-brace-format
 msgid "Creating a new {moduletype}  {modulename}"
-msgstr "neues {moduletype} {modulename} wird angelegt"
+msgstr "{moduletype} {modulename} wird angelegt"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:62
 msgid "new"
-msgstr "neu"
+msgstr "&neu"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:63
 msgid "&Open"
@@ -115,35 +115,35 @@ msgstr "beendet die anwendung"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:69
 msgid "empty file"
-msgstr "leere Datei"
+msgstr "&leere Datei"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:70
 msgid "appmodule"
-msgstr "Anwendungsmodul"
+msgstr "&Anwendungsmodul"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:71
 msgid "global plugin"
-msgstr "Globales Plugin"
+msgstr "&Globales Plugin"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:72
 msgid "braille display driver"
-msgstr "BraillezeilenTreiber"
+msgstr "&BraillezeilenTreiber"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:73
 msgid "speech synthesizer driver"
-msgstr "SprachausgabenTreiber"
+msgstr "&SprachausgabenTreiber"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:74
 msgid "visual enhancement provider"
-msgstr "visuelle Verbesserung"
+msgstr "&visuelle Verbesserung"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:75
 msgid "undo"
-msgstr "rückgängig"
+msgstr "&rückgängig"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:76
 msgid "redo"
-msgstr "wiederholen"
+msgstr "&wiederholen"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:77
 msgid "cut"
@@ -167,7 +167,7 @@ msgstr "&löschen"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:82
 msgid "insert function..."
-msgstr "Funktion einfügen..."
+msgstr "&Funktion einfügen..."
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:83
 msgid "&find..."
@@ -175,11 +175,11 @@ msgstr "&suchen..."
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:84
 msgid "find next"
-msgstr "Weitersuchen"
+msgstr "&Weitersuchen"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:87
 msgid "find previous"
-msgstr "rückwärts suchen"
+msgstr "rückwärts s%uchen"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:90
 msgid "replace\tctrl+h"
@@ -187,7 +187,7 @@ msgstr "&ersetzen\tstrg+h"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:91
 msgid "go to Line...\tctrl+g"
-msgstr "gehe zu Zeile...\tSTRG+G"
+msgstr "gehe zu &Zeile...\tSTRG+G"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:92
 msgid "about..."
@@ -233,7 +233,7 @@ msgstr "Änderungen speichern?"
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:243
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:451
 msgid "untitled"
-msgstr "ohne Titel"
+msgstr "unbenannt"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:256
 msgid "Find"
