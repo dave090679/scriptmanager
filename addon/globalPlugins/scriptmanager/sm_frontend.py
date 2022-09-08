@@ -126,8 +126,9 @@ class scriptmanager_mainwindow(wx.Frame):
 		self.Bind(wx.EVT_KEY_DOWN,self.OnKeyDown)
 		self.text = wx.TextCtrl(parent=self, id=1000, value='', size=(-1, -1), style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER | wx.TE_DONTWRAP)
 		self.text.Bind(wx.EVT_TEXT,self.OnTextChanged)
-		self.text.LoadFile(scriptfile)
-		self.last_name_saved = scriptfile
+		if scriptfile != '':
+			self.text.LoadFile(scriptfile)
+			self.last_name_saved = scriptfile
 		self.modify = False
 		self.text.SelectNone()
 		self.text.SetFocus()

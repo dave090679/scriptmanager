@@ -38,12 +38,18 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				if addon: 
 					sm_backend.copyfromaddon(addon=addon, appname=self.appname)
 					load = True
-		if not load:
-			msg = _("""There's allready an Appmodule for {appname} included in to NVDA but it is only included as a compiled file and it can't be loaded into the script manager for editing.""").format(appname=self.appname)
-			msgbox = wx.CallAfter(gui.messageBox, message=msg)
-		if load: wx.CallAfter(self.loadappmodule, self.appname)
+		if load: 
+			wx.CallAfter(self.loadappmodule, self.appname)
+		else:
+			wx.CallAfter(self.loadappmodule,'')
+
 
 	def loadappmodule(self, appName):
 		userconfigfile = config.getScratchpadDir(True)+os.sep+'appModules'+os.sep+appName+'.py'
-		frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), userconfigfile)
+		if appName: 
+			frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), userconfigfile)
+		else:
+			frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), '')
 		frame.Show(True)
+		frame.text.SetFocus()
+
