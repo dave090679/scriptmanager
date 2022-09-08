@@ -51,5 +51,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		else:
 			frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), '')
 		frame.Show(True)
+		frame.SetPosition(wx.Point(0,0))
+		frame.SetSize(wx.DisplaySize())
 		frame.text.SetFocus()
 

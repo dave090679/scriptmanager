@@ -50,7 +50,7 @@ class insertfunctionsdialog(wx.Dialog):
 
 class scriptmanager_mainwindow(wx.Frame):
 	def __init__(self, parent, id, title, scriptfile):
-		wx.Frame.__init__(self, parent, id, title, wx.DefaultPosition, wx.Size(-1, -1))
+		wx.Frame.__init__(self, parent, id, title)
 		menubar = wx.MenuBar()
 		self.StatusBar()
 		filemenu = wx.Menu()
@@ -148,7 +148,6 @@ class scriptmanager_mainwindow(wx.Frame):
 			self.DoNewEmptyFile()
 
 	def OnNewAppModule(self, event):
-		file_name = os.path.basename(self.last_name_saved)
 		self.defaultdir = config.getScratchpadDir(True)+os.sep+'appModules'
 		self.defaultfile = _('untitled')+'.py'
 		if self.text.IsModified and self.text.GetValue():
@@ -397,7 +396,6 @@ class scriptmanager_mainwindow(wx.Frame):
 			self.text.WriteText(ifd.functionstring)
 			ifd.Destroy()
 	def OnOpenFile(self, event):
-		file_name = os.path.basename(self.last_name_saved)
 		if self.text.IsModified and self.text.GetValue():
 			dlg = wx.MessageDialog(self, _('Save changes?'), '', wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION)
 			val = dlg.ShowModal()
