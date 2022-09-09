@@ -167,7 +167,6 @@ class scriptmanager_mainwindow(wx.Frame):
 			self.text.SetValue(sm_backend.createnewmodule('appModule', _('untitled'), False))
 
 	def OnNewGlobalPlugin(self, event):
-		file_name = os.path.basename(self.last_name_saved)
 		self.defaultdir = config.getScratchpadDir(True)+os.sep+'globalPlugins'
 		if self.text.IsModified and self.text.GetValue():
 			dlg = wx.MessageDialog(self, _('Save changes?'), '', wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION)
@@ -186,7 +185,6 @@ class scriptmanager_mainwindow(wx.Frame):
 			self.text.SetValue(sm_backend.createnewmodule('globalPlugin', _('untitled'), False))
 
 	def OnNewBrailleDisplayDriver(self, event):
-		file_name = os.path.basename(self.last_name_saved)
 		self.defaultdir = config.getScratchpadDir(True)+os.sep+'brailleDisplayDrivers'
 		if self.text.IsModified and self.text.GetValue():
 			dlg = wx.MessageDialog(self, _('Save changes?'), '', wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION)
@@ -205,7 +203,6 @@ class scriptmanager_mainwindow(wx.Frame):
 			self.text.SetValue(sm_backend.createnewmodule('brailleDisplayDriver', _('untitled'), False))
 
 	def OnNewSynthDriver(self, event):
-		file_name = os.path.basename(self.last_name_saved)
 		self.defaultdir = config.getScratchpadDir(True)+os.sep+'synthDrivers'
 		if self.text.IsModified and self.text.GetValue():
 			dlg = wx.MessageDialog(self, _('Save changes?'), '', wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION)
@@ -224,7 +221,6 @@ class scriptmanager_mainwindow(wx.Frame):
 			self.text.SetValue(sm_backend.createnewmodule('synthDriver', _('untitled'), False))
 
 	def OnNewVisionEnhancementProvider(self, event):
-		file_name = os.path.basename(self.last_name_saved)
 		self.defaultdir = config.getScratchpadDir(True)+os.sep+'visionEnhancementProviders'
 		if self.text.IsModified and self.text.GetValue():
 			dlg = wx.MessageDialog(self, _('Save changes?'), '', wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION)
