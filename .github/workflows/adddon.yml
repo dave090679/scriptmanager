@@ -21,6 +21,9 @@ jobs:
         pip install Markdown
         pip install flake8
         pip install flake8-tabs
+        pip install configobj
+        pip install gettext
+        
     - name: Lint with flake8
       run:
         flake8 --exit-zero addon
