@@ -15,7 +15,8 @@ impPath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(impPath)
 import sm_backend, sm_frontend
 addonHandler.initTranslation()
-#
+from scriptHandler import script
+
 # Klasse von globalpluginhandler-globalplugin ableiten
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	# unser Plugin soll an die Tastenkombination nvda+0 zugewiesen werden. Diese Zuweisung erfolgt in einem Woerterbuch, das den Namen __gestures__ haben muss.
@@ -23,6 +24,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		'kb:nvda+shift+0':'scriptmanager'
 	}
 	# und nun folgt das eigentliche Script. Der name des Scripts stimmt zwar nicht ganz mit dem oben angegebenen Namen ueberein (das "Script_" fehlt, das stimmt aber so:-).
+	@script(
+		description=_("opens the nvda script manager window")
+	)
 	def script_scriptmanager(self, gesture):
 		focus=api.getFocusObject()
 		self.appname=appModuleHandler.getAppNameFromProcessID(focus.processID,False)
@@ -55,4 +59,3 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		frame.SetSize(wx.DisplaySize())
 		frame.text.SetFocus()
 
-	script_scriptmanager.__doc__=_("opens the nvda script manager window")
