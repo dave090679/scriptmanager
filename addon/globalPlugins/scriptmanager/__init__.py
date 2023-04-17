@@ -42,7 +42,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			wx.CallAfter(self.loadappmodule, self.appname)
 		else:
 			wx.CallAfter(self.loadappmodule,'')
-	script_scriptmanager.__doc__ = _("opens the nvda script manager window")
+
 
 	def loadappmodule(self, appName):
 		userconfigfile = config.getScratchpadDir(True)+os.sep+'appModules'+os.sep+appName+'.py'
@@ -55,3 +55,4 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		frame.SetSize(wx.DisplaySize())
 		frame.text.SetFocus()
 
+	script_scriptmanager.__doc__=_("opens the nvda script manager window")
