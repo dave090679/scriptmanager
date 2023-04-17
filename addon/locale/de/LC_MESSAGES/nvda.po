@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: loadappmodule 1.1\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-09-01 10:30+0200\n"
-"PO-Revision-Date: 2022-09-07 10:32+0200\n"
+"POT-Creation-Date: 2023-04-17 13:43+0200\n"
+"PO-Revision-Date: 2023-04-17 13:45+0200\n"
 "Last-Translator: david Parduhn <xkill85@gmx.net>\n"
 "Language-Team: David Parduhn <xkill85@gmx.net>\n"
 "Language: de\n"
@@ -16,18 +16,12 @@ msgstr ""
 "X-Generator: Poedit 2.4.3\n"
 "X-Poedit-SearchPath-0: .\n"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:42
-#, python-brace-format
-msgid ""
-"There's allready an Appmodule for {appname} included in to NVDA but it is "
-"only included as a compiled file and it can't be loaded into the script "
-"manager for editing."
-msgstr ""
-"Im Lieferumfang von NVDA ist bereits ein anwendungsmodul für {appname} "
-"enthalten, das jedoch nur in compilierter Form vorliegt und deshalb nicht "
-"zum Bearbeiten in den Editor geladen werden kann."
+#: addon/globalPlugins/scriptmanager/__init__.py:28
+msgid "opens the nvda script manager window"
+msgstr "öffnet das Fenster des nvda-script-Managers"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:48
+#: addon/globalPlugins/scriptmanager/__init__.py:54
+#: addon/globalPlugins/scriptmanager/__init__.py:56
 msgid "NVDA Script Manager"
 msgstr "NVDA Script-Manager"
 
@@ -205,13 +199,13 @@ msgstr "&bearbeiten"
 msgid "&Help"
 msgstr "&Hilfe"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:137
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:138
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:154
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:173
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:192
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:211
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:230
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:401
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:172
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:190
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:208
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:226
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:396
 msgid "Save changes?"
 msgstr "Änderungen speichern?"
 
@@ -219,98 +213,98 @@ msgstr "Änderungen speichern?"
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:159
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:164
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:167
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:178
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:183
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:186
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:197
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:202
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:205
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:216
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:177
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:182
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:185
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:195
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:200
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:203
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:213
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:218
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:221
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:224
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:235
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:240
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:243
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:451
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:231
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:236
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:239
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:446
 msgid "untitled"
 msgstr "unbenannt"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:256
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:252
 msgid "Find"
 msgstr "Suchen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:259
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:255
 msgid "go to line number"
 msgstr "Gehe zu Zeilennummer"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:260
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:256
 msgid "line number:"
 msgstr "Zeilennummer:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:261
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:257
 msgid "enter the line number to go to"
 msgstr "Geben Sie die Zeilennummer ein, zu der Sie springen möchten."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:273
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:269
 msgid "Find and replace"
 msgstr "Finden und ersetzen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:328
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:367
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:391
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:324
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:363
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:387
 msgid "text not found"
 msgstr "Text nicht gefunden"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:328
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:367
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:391
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:324
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:363
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:387
 msgid "find"
 msgstr "Finden"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:394
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:390
 msgid "insert function"
 msgstr "Funktion einfügen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:413
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:408
 msgid "All files (*.*)"
 msgstr "alle Dateien (*.*)"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:413
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:443
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:408
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:438
 msgid "appmodule source files (*.py)"
 msgstr "Anwendungsmodule und andere Quelldateien (*.py)"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:416
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:411
 msgid "Choose a file"
 msgstr "Wählen Sie eine Datei"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:434
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:459
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:429
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:454
 msgid "saved"
 msgstr "gespeichert"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:438
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:463
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:433
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:458
 msgid "Error saving file"
 msgstr "Fehler beim speichern der Datei"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:443
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:438
 msgid "All files(*.*)"
 msgstr "alle Dateien (*.*)"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:452
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:447
 msgid "Save file as..."
 msgstr "Datei speichern unter..."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:489
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:484
 msgid " modified"
 msgstr "geändert"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:505
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:500
 msgid "INS"
 msgstr "EINFG"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:516
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:511
 #, python-brace-format
 msgid ""
 "\tNVDA Script-manager\t\n"
@@ -321,11 +315,11 @@ msgstr ""
 " (c) 2011-{year} David Parduhn\n"
 " Teile Copyright (C) Jan Bodnar 2005-2006"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:516
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:511
 msgid "About nvda Script Manager"
 msgstr "Über den NVDA Script manager"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:521
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:516
 msgid "Save before Exit?"
 msgstr "Änderungen vor dem Schließen speichern?"
 
@@ -341,3 +335,13 @@ msgid ""
 msgstr ""
 "Diese Erweiterung verwendet einen eigenen Editor, um ein Anwendungsmodul für "
 "die aktuelle anwendung zu erstellen oder zu bearbeiten.\n"
+
+#, python-brace-format
+#~ msgid ""
+#~ "There's allready an Appmodule for {appname} included in to NVDA but it is "
+#~ "only included as a compiled file and it can't be loaded into the script "
+#~ "manager for editing."
+#~ msgstr ""
+#~ "Im Lieferumfang von NVDA ist bereits ein anwendungsmodul für {appname} "
+#~ "enthalten, das jedoch nur in compilierter Form vorliegt und deshalb nicht "
+#~ "zum Bearbeiten in den Editor geladen werden kann."
