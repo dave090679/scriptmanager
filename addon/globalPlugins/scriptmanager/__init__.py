@@ -20,12 +20,11 @@ from scriptHandler import script
 # Klasse von globalpluginhandler-globalplugin ableiten
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	# unser Plugin soll an die Tastenkombination nvda+0 zugewiesen werden. Diese Zuweisung erfolgt in einem Woerterbuch, das den Namen __gestures__ haben muss.
-	__gestures={
-		'kb:nvda+shift+0':'scriptmanager'
-	}
 	# und nun folgt das eigentliche Script. Der name des Scripts stimmt zwar nicht ganz mit dem oben angegebenen Namen ueberein (das "Script_" fehlt, das stimmt aber so:-).
 	@script(
-		description=_("opens the nvda script manager window")
+		description=_("opens the nvda script manager window"),
+		category=_("script manager"),
+		gesture="kb:nvda+shift+0"
 	)
 	def script_scriptmanager(self, gesture):
 		focus=api.getFocusObject()
