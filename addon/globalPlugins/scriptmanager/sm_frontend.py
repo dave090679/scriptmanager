@@ -20,13 +20,15 @@ class insertfunctionsdialog(wx.Dialog):
 		mainsizer = wx.BoxSizer(orient=wx.VERTICAL)
 		self.tree = wx.TreeCtrl(self, style=wx.TR_SINGLE | wx.TR_NO_BUTTONS)
 		rootnode = self.tree.AddRoot(text='root')
-		modulelist = sys.modules.keys()
-		for moduleitem in sorted(modulelist):
-			functionlist = inspect.getmembers(sys.modules[moduleitem], inspect.isfunction)
-			if len(functionlist) > 0: 
-				modulenode = self.tree.AppendItem(parent=rootnode, text=moduleitem)
-				for functionentry in sorted(functionlist):
-					functionnode = self.tree.AppendItem(parent=modulenode, text=functionentry[0])
+		ml = sys.modules
+		mlk = ml.keys()
+		for m in sorted(mlk):
+			modulenode = self.tree.AppendItem(parent=rootnode, text=m)
+			fl = ml[m].__dict__
+			flk = fl.keys()
+			for f in sorted(flk):
+				if inspect.isfunction(ml[m].__dict__[f]):
+					functionnode = self.tree.AppendItem(parent=modulenode, text=f)
 		mainsizer.Add(self.tree)
 		buttons = self.CreateButtonSizer(wx.OK|wx.CANCEL)
 		mainsizer.Add(buttons)

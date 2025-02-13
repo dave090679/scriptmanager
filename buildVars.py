@@ -20,7 +20,7 @@ addon_info = {
 	"addon-description" : _("""This add-on uses an own-built editor to create an appmodule for the currently running aplication.
 """),
 	# version
-	"addon-version" : "0.2.2",
+	"addon-version" : "0.2.3",
 	# Author(s)
 	"addon-author" : "David Parduhn <xkill85@gmx.net>",
 	# URL for the add-on documentation support
