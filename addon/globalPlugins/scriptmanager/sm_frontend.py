@@ -29,12 +29,16 @@ class insertfunctionsdialog(wx.Dialog):
 			for f in sorted(flk):
 				if inspect.isfunction(ml[m].__dict__[f]):
 					functionnode = self.tree.AppendItem(parent=modulenode, text=f)
-		mainsizer.Add(self.tree)
+		self.help_text = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_WORDWRAP)
+		mainsizer.Add(self.tree, 1, wx.EXPAND)
+		mainsizer.Add(self.help_text, 1, wx.EXPAND)
 		buttons = self.CreateButtonSizer(wx.OK|wx.CANCEL)
 		mainsizer.Add(buttons)
 		self.SetSizer(mainsizer)
 		self.Bind(wx.EVT_BUTTON,self.onOk,id=wx.ID_OK)
 		self.Bind(wx.EVT_BUTTON,self.onCancel,id=wx.ID_CANCEL)
+		self.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_selection_changed)
+		self.on_selection_changed(None)  # Initial update
 	def onOk(self, event):
 		tmpfunction = self.tree.GetItemText(self.tree.GetItemParent(self.tree.GetSelection()))+'.'
 		tmpfunction = tmpfunction+self.tree.GetItemText(self.tree.GetSelection())+'('
@@ -49,6 +53,38 @@ class insertfunctionsdialog(wx.Dialog):
 	def onCancel(self, event):
 		self.functionstring = ''
 		self.EndModal(wx.ID_CANCEL)
+
+	def on_selection_changed(self, event):
+		item = self.tree.GetSelection()
+		if item == self.tree.GetRootItem():
+			self.help_text.SetValue(_("select a module of a function to display help"))
+		else:
+			parent = self.tree.GetItemParent(item)
+			if parent == self.tree.GetRootItem():
+				# Modul
+				mod_name = self.tree.GetItemText(item)
+				mod = sys.modules.get(mod_name)
+				if mod and mod.__doc__:
+					self.help_text.SetValue(mod.__doc__)
+				else:
+					self.help_text.SetValue(_("no help available"))
+			else:
+				# Funktion
+				mod_name = self.tree.GetItemText(parent)
+				func_name = self.tree.GetItemText(item)
+				mod = sys.modules.get(mod_name)
+				if mod and hasattr(mod, func_name):
+					func = getattr(mod, func_name)
+					if callable(func):
+						doc = inspect.getdoc(func)
+						if doc:
+							self.help_text.SetValue(doc)
+						else:
+							self.help_text.SetValue(_("no help available"))
+					else:
+						self.help_text.SetValue(_("no function selected"))
+				else:
+					self.help_text.SetValue(_("Error."))
 
 class scriptmanager_mainwindow(wx.Frame):
 	def __init__(self, parent, id, title, scriptfile):

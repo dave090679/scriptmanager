@@ -39,7 +39,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			if not sm_backend.userappmoduleexists(self.appname):
 				addon = sm_backend.appmoduleprovidedbyaddon(self.appname)
 				if addon: 
-					sm_backend.copyfromaddon(addon=addon, appname=self.appname)
+					sm_backend.copyappmodulefromaddon(addon=addon, appname=self.appname)
 					load = True
 		if load: 
 			wx.CallAfter(self.loadappmodule, self.appname)
@@ -47,9 +47,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			wx.CallAfter(self.loadappmodule,'')
 
 
-	def loadappmodule(self, appName):
-		userconfigfile = config.getScratchpadDir(True)+os.sep+'appModules'+os.sep+appName+'.py'
-		if appName: 
+	def loadappmodule(self, appname):
+		userconfigfile = config.getScratchpadDir(True)+os.sep+'appModules'+os.sep+appname+'.py'
+		if appname: 
 			frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), userconfigfile)
 		else:
 			frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), '')

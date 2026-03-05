@@ -23,7 +23,7 @@ def appmoduleprovidedbyaddon(appname):
 def copyappmodulefromaddon(appname, addon):
 	addonname = addon.manifest['name']
 	addonfullpath = addon.path+os.sep+'appmodules'+os.sep+appname+'.py'
-	userconfigfile = config.getScratchpadDir(True)+os.sep+'appModules'+os.sep+appName+'.py'
+	userconfigfile = config.getScratchpadDir(True)+os.sep+'appModules'+os.sep+appname+'.py'
 	fd1 = open(addonfullpath,'r')
 	fd2 = open(userconfigfile,'a')
 	ui.message(_("copying appmodule for {appname} from addon {addonname} to user's config folder...").format(addonname=addonname, appname=appname))
