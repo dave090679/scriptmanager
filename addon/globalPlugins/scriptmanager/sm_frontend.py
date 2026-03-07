@@ -24,11 +24,18 @@ class insertfunctionsdialog(wx.Dialog):
 		mlk = ml.keys()
 		for m in sorted(mlk):
 			modulenode = self.tree.AppendItem(parent=rootnode, text=m)
-			fl = ml[m].__dict__
-			flk = fl.keys()
-			for f in sorted(flk):
-				if inspect.isfunction(ml[m].__dict__[f]):
-					functionnode = self.tree.AppendItem(parent=modulenode, text=f)
+			il = ml[m].__dict__
+			ilk = il.keys()
+			for i in sorted(ilk):
+				if inspect.isfunction(ml[m].__dict__[i]):
+					itemnode = self.tree.AppendItem(parent=modulenode, text=i, data="function")
+				elif inspect.isclass(ml[m].__dict__[i]):
+					classnode = self.tree.AppendItem(parent=modulenode, text=i, data="class")
+					for ci in sorted(ml[m].__dict__[i].__dict__.keys()):
+						if inspect.ismethod(ml[m].__dict__[i].__dict__[ci]):
+							methodnode = self.tree.AppendItem(parent=classnode, text=ci, data="method")
+						else:
+							propertynode = self.tree.AppendItem(parent=classnode, text=ci, data="property")
 		self.help_text = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_WORDWRAP)
 		mainsizer.Add(self.tree, 1, wx.EXPAND)
 		mainsizer.Add(self.help_text, 1, wx.EXPAND)
@@ -40,26 +47,111 @@ class insertfunctionsdialog(wx.Dialog):
 		self.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_selection_changed)
 		self.on_selection_changed(None)  # Initial update
 	def onOk(self, event):
-		tmpfunction = self.tree.GetItemText(self.tree.GetItemParent(self.tree.GetSelection()))+'.'
-		tmpfunction = tmpfunction+self.tree.GetItemText(self.tree.GetSelection())+'('
-		args = inspect.getfullargspec(sys.modules[self.tree.GetItemText(self.tree.GetItemParent(self.tree.GetSelection()))].__dict__[self.tree.GetItemText(self.tree.GetSelection())])[0]
-		for x in range(len(args)):
-			tmpfunction = tmpfunction +args[x]
-			if x < len(args)-1:
-				tmpfunction = tmpfunction+', '
-		tmpfunction = tmpfunction+')'
-		self.functionstring = tmpfunction
+		selection = self.tree.GetSelection()
+		if selection == self.tree.GetRootItem():
+			return
+		
+		parent = self.tree.GetItemParent(selection)
+		item_data = self.tree.GetItemData(selection)
+		item_text = self.tree.GetItemText(selection)
+		
+		# Modul ausgewählt (direktes Kind von root)
+		if parent == self.tree.GetRootItem():
+			self.functionstring = f"import {item_text}"
+		# Funktion oder Klasse ausgewählt (Kind eines Moduls)
+		elif self.tree.GetItemParent(parent) == self.tree.GetRootItem():
+			module_name = self.tree.GetItemText(parent)
+			if item_data == "class":
+				self.functionstring = f"from {module_name} import {item_text}"
+			elif item_data == "function":
+				self.functionstring = self._format_function_call(module_name, item_text)
+		# Methode ausgewählt (Kind einer Klasse)
+		else:
+			grandparent = self.tree.GetItemParent(parent)
+			module_name = self.tree.GetItemText(grandparent)
+			class_name = self.tree.GetItemText(parent)
+			if item_data == "method":
+				self.functionstring = self._format_method_call(module_name, class_name, item_text)
+		
 		self.EndModal(wx.ID_OK)
 	def onCancel(self, event):
 		self.functionstring = ''
 		self.EndModal(wx.ID_CANCEL)
+
+	def _format_function_call(self, module_name, function_name):
+		"""Erzeugt einen Funktionsaufruf mit Typ- und Parameternamen."""
+		try:
+			mod = sys.modules.get(module_name)
+			if not mod or not hasattr(mod, function_name):
+				return f"{function_name}()"
+			
+			func = getattr(mod, function_name)
+			sig = inspect.signature(func)
+			params = []
+			
+			for param_name, param in sig.parameters.items():
+				if param_name in ('self', 'cls'):
+					continue
+				
+				type_annotation = ''
+				if param.annotation != inspect.Parameter.empty:
+					if hasattr(param.annotation, '__name__'):
+						type_annotation = param.annotation.__name__
+					else:
+						type_annotation = str(param.annotation)
+				
+				if type_annotation:
+					params.append(f"{type_annotation} {param_name}")
+				else:
+					params.append(param_name)
+			
+			return f"{function_name}({', '.join(params)})"
+		except:
+			return f"{function_name}()"
+
+	def _format_method_call(self, module_name, class_name, method_name):
+		"""Erzeugt einen Methodenaufruf mit Typ- und Parameternamen."""
+		try:
+			mod = sys.modules.get(module_name)
+			if not mod or not hasattr(mod, class_name):
+				return f"{method_name}()"
+			
+			cls = getattr(mod, class_name)
+			if not hasattr(cls, method_name):
+				return f"{method_name}()"
+			
+			method = getattr(cls, method_name)
+			sig = inspect.signature(method)
+			params = []
+			
+			for param_name, param in sig.parameters.items():
+				if param_name in ('self', 'cls'):
+					continue
+				
+				type_annotation = ''
+				if param.annotation != inspect.Parameter.empty:
+					if hasattr(param.annotation, '__name__'):
+						type_annotation = param.annotation.__name__
+					else:
+						type_annotation = str(param.annotation)
+				
+				if type_annotation:
+					params.append(f"{type_annotation} {param_name}")
+				else:
+					params.append(param_name)
+			
+			return f"{method_name}({', '.join(params)})"
+		except:
+			return f"{method_name}()"
 
 	def on_selection_changed(self, event):
 		item = self.tree.GetSelection()
 		if item == self.tree.GetRootItem():
 			self.help_text.SetValue(_("select a module of a function to display help"))
 		else:
+			item_data = self.tree.GetItemData(item)
 			parent = self.tree.GetItemParent(item)
+			
 			if parent == self.tree.GetRootItem():
 				# Modul
 				mod_name = self.tree.GetItemText(item)
@@ -69,22 +161,58 @@ class insertfunctionsdialog(wx.Dialog):
 				else:
 					self.help_text.SetValue(_("no help available"))
 			else:
-				# Funktion
-				mod_name = self.tree.GetItemText(parent)
-				func_name = self.tree.GetItemText(item)
-				mod = sys.modules.get(mod_name)
-				if mod and hasattr(mod, func_name):
-					func = getattr(mod, func_name)
-					if callable(func):
+				# Funktion, Klasse, Methode oder Eigenschaft
+				if item_data == "function":
+					# Funktion
+					mod_name = self.tree.GetItemText(parent)
+					func_name = self.tree.GetItemText(item)
+					mod = sys.modules.get(mod_name)
+					if mod and hasattr(mod, func_name):
+						func = getattr(mod, func_name)
 						doc = inspect.getdoc(func)
 						if doc:
 							self.help_text.SetValue(doc)
 						else:
 							self.help_text.SetValue(_("no help available"))
 					else:
-						self.help_text.SetValue(_("no function selected"))
+						self.help_text.SetValue(_("Error."))
+				elif item_data == "class":
+					# Klasse
+					mod_name = self.tree.GetItemText(parent)
+					class_name = self.tree.GetItemText(item)
+					mod = sys.modules.get(mod_name)
+					if mod and hasattr(mod, class_name):
+						cls = getattr(mod, class_name)
+						doc = inspect.getdoc(cls)
+						if doc:
+							self.help_text.SetValue(doc)
+						else:
+							self.help_text.SetValue(_("no help available"))
+					else:
+						self.help_text.SetValue(_("Error."))
+				elif item_data in ("method", "property"):
+					# Methode oder Eigenschaft
+					grandparent = self.tree.GetItemParent(parent)
+					mod_name = self.tree.GetItemText(grandparent)
+					class_name = self.tree.GetItemText(parent)
+					member_name = self.tree.GetItemText(item)
+					
+					mod = sys.modules.get(mod_name)
+					if mod and hasattr(mod, class_name):
+						cls = getattr(mod, class_name)
+						if hasattr(cls, member_name):
+							member = getattr(cls, member_name)
+							doc = inspect.getdoc(member)
+							if doc:
+								self.help_text.SetValue(doc)
+							else:
+								self.help_text.SetValue(_("no help available"))
+						else:
+							self.help_text.SetValue(_("Error."))
+					else:
+						self.help_text.SetValue(_("Error."))
 				else:
-					self.help_text.SetValue(_("Error."))
+					self.help_text.SetValue(_("no help available"))
 
 class scriptmanager_mainwindow(wx.Frame):
 	def __init__(self, parent, id, title, scriptfile):
