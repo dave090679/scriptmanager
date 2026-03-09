@@ -1,54 +1,67 @@
+# Build and release NVDA add-on
+# Python 3.11: Compatible with NVDA 2025.3.3 and later
+# Future: Python 3.13 support for NVDA 2026.1
 name: Build and release NVDA add-on
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
-
     runs-on: windows-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-    - name: Set up Python 3.7
-      uses: actions/setup-python@v1
-      with:
-        python-version: 3.7
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install scons
-        pip install Markdown
-        pip install flake8
-        pip install flake8-tabs
-        pip install configobj
-        pip install gettext
-        
-    - name: Lint with flake8
-      run:
-        flake8 --exit-zero addon
-        # stop the build if there are Python syntax errors or undefined names
-        # flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Build add-on
-      run: scons
-    - name: Create Release
-      if: contains(github.ref, '/tags/')
-      uses: actions/create-release@latest
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        prerelease: ${{ endsWith(github.ref, '-dev') }}
-    - name: Upload binaries to release
-      if: contains(github.ref, '/tags/')
-      uses: svenstaro/upload-release-action@v1-release
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: '*.nvda-addon'
-        tag: ${{ github.ref }}
-        overwrite: true
-        file_glob: true
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install scons Markdown flake8 flake8-tabs configobj gettext-windows
+
+      - name: Lint with flake8
+        run: flake8 --exit-zero addon
+
+      - name: Build add-on
+        run: scons
+
+      - name: Extract version
+        id: version
+        run: python -c "import buildVars; print(f'VERSION={buildVars.addon_info[\"addon-version\"]}')" >> $GITHUB_OUTPUT
+        shell: powershell
+
+      - name: Check if release exists
+        id: check_release
+        run: |
+          $tag = "v${{ steps.version.outputs.VERSION }}"
+          $response = Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers @{"Authorization"="token ${{ secrets.GITHUB_TOKEN }}"} -ErrorAction SilentlyContinue
+          if ($response.StatusCode -eq 200) {
+            echo "exists=true" >> $GITHUB_OUTPUT
+          } else {
+            echo "exists=false" >> $GITHUB_OUTPUT
+          }
+        shell: powershell
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+      - name: Create Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.check_release.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: Release v${{ steps.version.outputs.VERSION }}
+          files: '*.nvda-addon'
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, 'dev') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
