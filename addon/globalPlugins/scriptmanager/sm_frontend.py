@@ -30,7 +30,7 @@ class insertfunctionsdialog(wx.Dialog):
         self.tree_initialized = False
         self.dialog_closed = False
         
-        # Blacklist bestimmter Module die Probleme verursachen
+        # Blacklist certain modules that cause problems
         self.blacklist = {
             "ctypes",
             "ctypes.wintypes",
@@ -43,10 +43,10 @@ class insertfunctionsdialog(wx.Dialog):
             "pandas",
         }
         
-        # Marker für geladene Nodes
+        # Marker for loaded nodes
         self.loaded_nodes = set()
         
-        # Erstelle einen Platzhalter-Child für Root, damit es expandierbar ist
+        # Create a placeholder child for root so it's expandable
         placeholder = self.tree.AppendItem(parent=self.rootnode, text="[Loading modules...]")
         self.tree.SetItemData(placeholder, "placeholder")
 
@@ -58,21 +58,23 @@ class insertfunctionsdialog(wx.Dialog):
         buttons = self.CreateButtonSizer(wx.OK | wx.CANCEL)
         mainsizer.Add(buttons)
         self.SetSizer(mainsizer)
+        self.SetAffirmativeId(wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.onOk, id=wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.onCancel, id=wx.ID_CANCEL)
         self.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_selection_changed)
         self.Bind(wx.EVT_TREE_ITEM_EXPANDING, self.on_tree_item_expanding)
         self.Bind(wx.EVT_WINDOW_DESTROY, self.OnDestroy)
+        self.Bind(wx.EVT_CHAR_HOOK, self.on_char_hook)
 
-        # Zeige initial eine Nachricht
+        # Show initial message
         self.help_text.SetValue(_("Expand the root node to load modules..."))
 
     def _load_root_modules(self):
-        """Lade die Module als Kinder des Root-Knotens"""
+        """Load the modules as children of the root node"""
         if self.dialog_closed:
             return
         
-        # Entferne den Platzhalter
+        # Remove the placeholder
         root_child = self.tree.GetFirstChild(self.rootnode)[0]
         if root_child and self.tree.GetItemData(root_child) == "placeholder":
             self.tree.Delete(root_child)
@@ -93,7 +95,7 @@ class insertfunctionsdialog(wx.Dialog):
                 
                 has_items = False
                 
-                # Prüfe ob Modul Funktionen oder Klassen hat
+                # Check if module has functions or classes
                 for i in ilk:
                     try:
                         obj = il[i]
@@ -104,12 +106,12 @@ class insertfunctionsdialog(wx.Dialog):
                         pass
                 
                 if has_items:
-                    # Erstelle Modul-Node mit Platzhalter-Kind (damit expandierbar)
+                    # Create module node with placeholder child (so it's expandable)
                     modulenode = self.tree.AppendItem(
                         parent=self.rootnode, text=m
                     )
                     self.tree.SetItemData(modulenode, "module")
-                    # Platzhalter damit es expandierbar ist
+                    # Placeholder so it's expandable
                     placeholder = self.tree.AppendItem(
                         parent=modulenode, text="[Loading...]"
                     )
@@ -118,12 +120,12 @@ class insertfunctionsdialog(wx.Dialog):
             except:
                 pass
         
-        # Markiere Root als geladen
+        # Mark root as loaded
         self.loaded_nodes.add(id(self.rootnode))
         self.tree_initialized = True
     
     def _load_module_content(self, module_node):
-        """Lade den Inhalt eines Moduls (Funktionen und Klassen)"""
+        """Load the content of a module (functions and classes)"""
         module_name = self.tree.GetItemText(module_node)
         
         # Entferne Platzhalter
@@ -166,11 +168,11 @@ class insertfunctionsdialog(wx.Dialog):
             except:
                 pass
         
-        # Markiere Modul als geladen
+        # Mark module as loaded
         self.loaded_nodes.add(id(module_node))
     
     def _load_class_content(self, class_node):
-        """Lade den Inhalt einer Klasse (Methoden und Eigenschaften)"""
+        """Load the content of a class (methods and properties)"""
         parent_module_node = self.tree.GetItemParent(class_node)
         module_name = self.tree.GetItemText(parent_module_node)
         class_name = self.tree.GetItemText(class_node)
@@ -209,30 +211,30 @@ class insertfunctionsdialog(wx.Dialog):
         except:
             pass
         
-        # Markiere Klasse als geladen
+        # Mark class as loaded
         self.loaded_nodes.add(id(class_node))
     
     def on_tree_item_expanding(self, event):
-        """Event-Handler für Baumknoten-Expansion"""
+        """Event handler for tree node expansion"""
         if self.dialog_closed:
             return
         
         item = event.GetItem()
         item_data = self.tree.GetItemData(item)
         
-        # Wenn Knoten bereits geladen, nichts tun
+        # If node already loaded, do nothing
         if id(item) in self.loaded_nodes:
             return
         
-        # Root expandieren - Lade Module
+        # Root expand - load modules
         if item == self.rootnode:
             self._load_root_modules()
         
-        # Modul expandieren - Lade dessen Inhalt
+        # Module expand - load its content
         elif item_data == "module":
             self._load_module_content(item)
         
-        # Klasse expandieren - Lade deren Inhalt
+        # Class expand - load its content
         elif item_data == "class":
             self._load_class_content(item)
 
@@ -245,17 +247,17 @@ class insertfunctionsdialog(wx.Dialog):
         item_data = self.tree.GetItemData(selection)
         item_text = self.tree.GetItemText(selection)
 
-        # Modul ausgewählt (direktes Kind von root)
+        # Module selected (direct child of root)
         if parent == self.tree.GetRootItem():
             self.functionstring = f"import {item_text}"
-        # Funktion oder Klasse ausgewählt (Kind eines Moduls)
+        # Function or class selected (child of a module)
         elif self.tree.GetItemParent(parent) == self.tree.GetRootItem():
             module_name = self.tree.GetItemText(parent)
             if item_data == "class":
                 self.functionstring = f"from {module_name} import {item_text}"
             elif item_data == "function":
                 self.functionstring = self._format_function_call(module_name, item_text)
-        # Methode ausgewählt (Kind einer Klasse)
+        # Method selected (child of a class)
         else:
             grandparent = self.tree.GetItemParent(parent)
             module_name = self.tree.GetItemText(grandparent)
@@ -270,6 +272,18 @@ class insertfunctionsdialog(wx.Dialog):
     def onCancel(self, event):
         self.functionstring = ""
         self.EndModal(wx.ID_CANCEL)
+
+    def on_char_hook(self, event):
+        """Handle character input in the dialog, particularly Enter key"""
+        keycode = event.GetKeyCode()
+        # Enter key
+        if keycode == wx.WXK_RETURN:
+            # Trigger OK action
+            evt = wx.CommandEvent(wx.wxEVT_COMMAND_BUTTON_CLICKED, wx.ID_OK)
+            self.ProcessEvent(evt)
+            return
+        # Allow other keys to propagate
+        event.Skip()
 
     def OnDestroy(self, event):
         """Wird aufgerufen wenn der Dialog zerstört wird"""
@@ -429,7 +443,197 @@ class insertfunctionsdialog(wx.Dialog):
                     self.help_text.SetValue(_("No help available"))
 
 
+class newscriptdialog(wx.Dialog):
+    """Dialog zum Erstellen eines neuen Scripts mit Vorlage."""
+    
+    # Liste der verfügbaren Scriptkategorien
+    SCRIPT_CATEGORIES = [
+        _("Miscellaneous"),
+        _("Browse mode"),
+        _("Emulated system keyboard keys"),
+        _("Text review"),
+        _("Object navigation"),
+        _("System caret"),
+        _("Mouse"),
+        _("Speech"),
+        _("Configuration"),
+        _("Configuration profiles"),
+        _("Braille"),
+        _("Vision"),
+        _("Tools"),
+        _("Touch screen"),
+        _("System focus"),
+        _("System status"),
+        _("Input"),
+        _("Document formatting"),
+    ]
+    
+    def __init__(self, parent, id, title):
+        super(newscriptdialog, self).__init__(parent, id, title, style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        
+        self.script_name = ""
+        self.script_description = ""
+        self.script_gesture = ""
+        self.script_category = ""
+        self.captured_key = None
+        self.key_capture_active = False
+        
+        # Hauptsizer
+        main_sizer = wx.BoxSizer(orient=wx.VERTICAL)
+        
+        # Script-Name
+        name_sizer = wx.BoxSizer(orient=wx.HORIZONTAL)
+        name_label = wx.StaticText(self, label=_("&Script name:"))
+        self.name_ctrl = wx.TextCtrl(self, value="")
+        name_sizer.Add(name_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        name_sizer.Add(self.name_ctrl, 1, wx.EXPAND)
+        main_sizer.Add(name_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        
+        # Beschreibung
+        desc_label = wx.StaticText(self, label=_("&Description:"))
+        self.desc_ctrl = wx.TextCtrl(self, value="", style=wx.TE_MULTILINE | wx.TE_WORDWRAP)
+        self.desc_ctrl.SetMinSize((300, 80))
+        main_sizer.Add(desc_label, 0, wx.ALL, 5)
+        main_sizer.Add(self.desc_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        
+        # Tastenkombination
+        gesture_sizer = wx.BoxSizer(orient=wx.HORIZONTAL)
+        gesture_label = wx.StaticText(self, label=_("&Gesture:"))
+        self.gesture_ctrl = wx.TextCtrl(self, value="", style=wx.TE_READONLY)
+        self.gesture_capture_btn = wx.Button(self, label=_("&Capture gesture"))
+        gesture_sizer.Add(gesture_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        gesture_sizer.Add(self.gesture_ctrl, 1, wx.EXPAND | wx.RIGHT, 5)
+        gesture_sizer.Add(self.gesture_capture_btn, 0)
+        main_sizer.Add(gesture_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        
+        # Kategorie
+        category_sizer = wx.BoxSizer(orient=wx.HORIZONTAL)
+        category_label = wx.StaticText(self, label=_("&Category:"))
+        self.category_ctrl = wx.ComboBox(
+            self,
+            choices=self.SCRIPT_CATEGORIES,
+            value=self.SCRIPT_CATEGORIES[0] if self.SCRIPT_CATEGORIES else "",
+            style=wx.CB_DROPDOWN
+        )
+        category_sizer.Add(category_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        category_sizer.Add(self.category_ctrl, 1, wx.EXPAND)
+        main_sizer.Add(category_sizer, 0, wx.EXPAND | wx.ALL, 5)
+        
+        # Buttons
+        buttons = self.CreateButtonSizer(wx.OK | wx.CANCEL)
+        main_sizer.Add(buttons, 0, wx.EXPAND | wx.ALL, 5)
+        
+        # Sizer setzen
+        self.SetSizer(main_sizer)
+        self.SetSize((500, 400))
+        
+        # Event-Bindungen
+        self.Bind(wx.EVT_BUTTON, self.onCaptureGesture, self.gesture_capture_btn)
+        self.Bind(wx.EVT_BUTTON, self.onOk, id=wx.ID_OK)
+        self.Bind(wx.EVT_BUTTON, self.onCancel, id=wx.ID_CANCEL)
+        self.Bind(wx.EVT_CHAR_HOOK, self.onCharHook)
+        
+        # Fokus auf Name-Feld
+        self.name_ctrl.SetFocus()
+    
+    def onCaptureGesture(self, event):
+        """Event-Handler für Gestural-Erfassung aktivieren."""
+        self.key_capture_active = not self.key_capture_active
+        
+        if self.key_capture_active:
+            self.gesture_capture_btn.SetLabel(_("&Stop capturing"))
+            self.gesture_ctrl.SetValue(_("Press a key..."))
+            self.gesture_ctrl.SetBackgroundColour(wx.Colour(255, 255, 200))
+            self.gesture_capture_btn.SetFocus()
+        else:
+            self.gesture_capture_btn.SetLabel(_("&Capture gesture"))
+            self.gesture_ctrl.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW))
+    
+    def onCharHook(self, event):
+        """Event-Handler für Tasteneingaben während der Erfassung."""
+        if not self.key_capture_active:
+            event.Skip()
+            return
+        
+        key_code = event.GetKeyCode()
+        
+        # Tasten ignorieren, die nicht abgefangen werden sollen
+        if key_code in (wx.WXK_TAB, wx.WXK_ESCAPE, wx.WXK_RETURN):
+            if key_code == wx.WXK_ESCAPE:
+                self.onCaptureGesture(None)
+            event.Skip()
+            return
+        
+        # Diese Taste sollte behandelt werden
+        event.Skip = lambda: None  # Verhindern, dass die Taste weitergeleitet wird
+        
+        # Modifikatoren sammeln
+        modifiers = []
+        
+        if event.ControlDown():
+            modifiers.append("control")
+        if event.ShiftDown():
+            modifiers.append("shift")
+        if event.AltDown():
+            modifiers.append("alt")
+        
+        # Key name ermitteln
+        key_name = self._getKeyName(key_code)
+        
+        if key_name:
+            modifiers.append(key_name)
+            gesture_str = "+".join(modifiers)
+            self.script_gesture = "kb:" + gesture_str
+            self.gesture_ctrl.SetValue(self.script_gesture)
+            
+            # Erfassung stoppen
+            self.onCaptureGesture(None)
+    
+    def _getKeyName(self, key_code):
+        """Übersetzt WX-Key-Code zu NVDA-Key-Name."""
+        # Mapping von WX VK-Codes zu NVDA-Namen
+        key_mapping = {
+            wx.WXK_F1: "f1", wx.WXK_F2: "f2", wx.WXK_F3: "f3", wx.WXK_F4: "f4",
+            wx.WXK_F5: "f5", wx.WXK_F6: "f6", wx.WXK_F7: "f7", wx.WXK_F8: "f8",
+            wx.WXK_F9: "f9", wx.WXK_F10: "f10", wx.WXK_F11: "f11", wx.WXK_F12: "f12",
+            wx.WXK_HOME: "home", wx.WXK_END: "end",
+            wx.WXK_PAGEUP: "pageUp", wx.WXK_PAGEDOWN: "pageDown",
+            wx.WXK_UP: "upArrow", wx.WXK_DOWN: "downArrow",
+            wx.WXK_LEFT: "leftArrow", wx.WXK_RIGHT: "rightArrow",
+            wx.WXK_INSERT: "insert", wx.WXK_DELETE: "delete",
+            wx.WXK_BACK: "backspace", wx.WXK_SPACE: "space",
+        }
+        
+        if key_code in key_mapping:
+            return key_mapping[key_code]
+        
+        # Für reguläre Zeichen
+        if 32 <= key_code < 127:
+            return chr(key_code).lower()
+        
+        return None
+    
+    def onOk(self, event):
+        """Event-Handler für OK-Button."""
+        self.script_name = self.name_ctrl.GetValue().strip()
+        self.script_description = self.desc_ctrl.GetValue().strip()
+        self.script_gesture = self.gesture_ctrl.GetValue().strip()
+        self.script_category = self.category_ctrl.GetStringSelection()
+        
+        if not self.script_name:
+            wx.MessageBox(_("Please enter a script name."), _("Missing Information"))
+            self.name_ctrl.SetFocus()
+            return
+        
+        self.EndModal(wx.ID_OK)
+    
+    def onCancel(self, event):
+        """Event-Handler für Cancel-Button."""
+        self.EndModal(wx.ID_CANCEL)
+
+
 class scriptmanager_mainwindow(wx.Frame):
+
     def __init__(self, parent, id, title, scriptfile):
         wx.Frame.__init__(self, parent, id, title)
         menubar = wx.MenuBar()
@@ -465,6 +669,7 @@ class scriptmanager_mainwindow(wx.Frame):
         edit.Append(204, _("select all") + "\tctrl+a")
         edit.Append(205, _("delete") + "\tctrl+y")
         edit.Append(206, _("insert function...") + "\tctrl+i")
+        edit.Append(223, _("&new script") + "\tctrl+e", _("Create a new script with template"))
         edit.Append(207, _("&find...") + "	ctrl+f")
         findnextitem = wx.MenuItem(edit, 208, _("find next") + "\tf3")
         findnextitem.Enable(True)
@@ -508,6 +713,7 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnDelete, id=204)
         self.Bind(wx.EVT_MENU, self.OnSelectAll, id=205)
         self.Bind(wx.EVT_MENU, self.OnInsertFunction, id=206)
+        self.Bind(wx.EVT_MENU, self.OnNewScript, id=223)
         self.Bind(wx.EVT_MENU, self.OnFinditem, id=207)
         self.Bind(wx.EVT_MENU, self.OnFindnextitem, id=208)
         self.Bind(wx.EVT_MENU, self.OnFindpreviousitem, id=209)
@@ -540,6 +746,8 @@ class scriptmanager_mainwindow(wx.Frame):
         self.errors = []
         self.current_error_index = -1
         self.replace = False
+        # Aktiviere Error Logging für das aktuelle Script
+        sm_backend.activate_error_logging(scriptfile if scriptfile else None)
 
     def OnNewEmptyFile(self, event):
         file_name = os.path.basename(self.last_name_saved)
@@ -724,6 +932,87 @@ class scriptmanager_mainwindow(wx.Frame):
     def DoNewEmptyFile(self):
         self.last_name_saved = ""
         self.text.Clear()
+
+    def OnNewScript(self, event):
+        """Event-Handler für das Erstellen eines neuen Scripts."""
+        # Check für ungespeicherte Änderungen
+        if self.text.IsModified() and self.text.GetValue():
+            dlg = wx.MessageDialog(
+                self,
+                _("Save changes?"),
+                "",
+                wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION,
+            )
+            val = dlg.ShowModal()
+            dlg.Destroy()
+            
+            if val == wx.ID_YES:
+                self.OnSaveFile(event)
+            elif val == wx.ID_CANCEL:
+                return
+        
+        # Dialog zum Erstellen des Scripts öffnen
+        dlg = newscriptdialog(self, -1, _("Create new script"))
+        result = dlg.ShowModal()
+        
+        if result == wx.ID_OK:
+            # Script basierend auf Dialogeingaben generieren
+            script_content = self._generateScriptTemplate(
+                dlg.script_name,
+                dlg.script_description,
+                dlg.script_gesture,
+                dlg.script_category
+            )
+            
+            # Leere Datei vorbereiten
+            self.DoNewEmptyFile()
+            
+            # Script-Template einfügen
+            self.text.SetValue(script_content)
+            
+            # Text als modifiziert markieren
+            self.text.MarkDirty()
+        
+        dlg.Destroy()
+    
+    def _generateScriptTemplate(self, name, description, gesture, category):
+        """Generiert ein Script-Template basierend auf den Eingaben."""
+        # Script-Namen bereinigen (nur alphanumerisch und Unterstriche)
+        clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
+        clean_name = clean_name.lower()
+        if not clean_name.startswith('script_'):
+            clean_name = 'script_' + clean_name
+        
+        # Gesture formatieren (wenn vorhanden, sonst auskommentieren)
+        if gesture:
+            gesture_line = f',\n    gesture="{gesture}"'
+        else:
+            gesture_line = ''
+        
+        # Template basierend auf Beschreibung (einzeilig vs mehrzeilig)
+        if '\n' in description:
+            # Mehrzeilige Beschreibung mit Triple-Quotes
+            desc_str = 'Description=_(\"\"\"%s\"\"\")' % description
+            template = f'''@scriptHandler.script(
+    {desc_str},
+    category=_("{category}"){gesture_line}
+)
+def {clean_name}(self, gesture):
+    """Script: {name}"""
+    pass
+'''
+        else:
+            # Einzeilige Beschreibung
+            template = f'''@scriptHandler.script(
+    description=_("{description}"),
+    category=_("{category}"){gesture_line}
+)
+def {clean_name}(self, gesture):
+    """Script: {name}"""
+    pass
+'''
+        
+        return template
 
     def OnFinditem(self, event):
         if not hasattr(self, "frdata"):
@@ -923,9 +1212,9 @@ class scriptmanager_mainwindow(wx.Frame):
     def DoOpenFile(self):
         wcd = (
             _("All files (*.*)")
-            + "|*.*|"
-            + _("appmodule source files (*.py)")
-            + "|*.py"
+            +"|*.*|"
+            +_("appmodule source files (*.py)")
+            +"|*.py"
         )
         dir = os.getcwd()
         try:
@@ -955,6 +1244,9 @@ class scriptmanager_mainwindow(wx.Frame):
     def OnSaveFile(self, event):
         if self.last_name_saved:
             try:
+                # Aktiviere Error Logging vor dem Speichern
+                sm_backend.activate_error_logging(self.last_name_saved)
+                
                 self.text.SaveFile(self.last_name_saved)
                 self.statusbar.SetStatusText(
                     os.path.basename(self.last_name_saved) + " " + _("saved"), 0
@@ -1061,7 +1353,7 @@ class scriptmanager_mainwindow(wx.Frame):
                         self.text.XYToPosition(
                             self.searchresults[x][1], self.searchresults[x][0]
                         )
-                        + len(self.frdata.FindString)
+                        +len(self.frdata.FindString)
                     ) < self.text.GetInsertionPoint():
                         x += 1
                 self.searchresultindex = x
@@ -1098,6 +1390,9 @@ class scriptmanager_mainwindow(wx.Frame):
             ui.message(_("No script content to check"))
             return
 
+        # Aktiviere Error Logging bevor wir die Fehler prüfen
+        sm_backend.activate_error_logging(self.last_name_saved if self.last_name_saved else None)
+        
         self.errors, error_detail_str = sm_backend.check_script_for_errors(
             script_content
         )
@@ -1119,6 +1414,15 @@ class scriptmanager_mainwindow(wx.Frame):
 
     def OnNextError(self, event):
         """Springt zum nächsten Fehler."""
+        # Wenn noch keine Fehler geprüft wurden, prüfe sie jetzt
+        if not self.errors and self.current_error_index == -1:
+            # Trigger OnCheckErrors automatisch
+            check_event = None
+            self.OnCheckErrors(check_event)
+            # Wenn keine Fehler gefunden wurden, beende hier
+            if not self.errors:
+                return
+        
         if not self.errors:
             wx.Bell()
             msg = _("no errors found")
@@ -1137,6 +1441,15 @@ class scriptmanager_mainwindow(wx.Frame):
 
     def OnPreviousError(self, event):
         """Springt zum vorherigen Fehler."""
+        # Wenn noch keine Fehler geprüft wurden, prüfe sie jetzt
+        if not self.errors and self.current_error_index == -1:
+            # Trigger OnCheckErrors automatisch
+            check_event = None
+            self.OnCheckErrors(check_event)
+            # Wenn keine Fehler gefunden wurden, beende hier
+            if not self.errors:
+                return
+        
         if not self.errors:
             wx.Bell()
             msg = _("no errors found")

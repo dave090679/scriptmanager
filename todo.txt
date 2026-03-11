@@ -1,5 +1,3 @@
-** add "new script" dialog to easyly insert a new script and assign it to a hotkey
 ** add a script list
 ** add hotkeys to find the next/previous Script
-** add smart import for modules/classes in insertfunctiondialog
 

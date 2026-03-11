@@ -1,6 +1,6 @@
-# globales Plug-in zum einfacheren erstellen/laden von Anwendungsmodulen fuer nvda.
+# Global plugin to make it easier to create/load application modules for NVDA.
 #
-# erstmal das benoetigte Zeugs rankarren:-)
+# First get the required stuff :-)
 import config
 import wx
 import globalPluginHandler
@@ -19,8 +19,8 @@ from scriptHandler import script
 
 # Klasse von globalpluginhandler-globalplugin ableiten
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
-	# unser Plugin soll an die Tastenkombination nvda+0 zugewiesen werden. Diese Zuweisung erfolgt in einem Woerterbuch, das den Namen __gestures__ haben muss.
-	# und nun folgt das eigentliche Script. Der name des Scripts stimmt zwar nicht ganz mit dem oben angegebenen Namen ueberein (das "Script_" fehlt, das stimmt aber so:-).
+	# Our plugin should be assigned to the keyboard combination NVDA+Shift+0. This assignment takes place in a dictionary named __gestures__.
+	# and now follows the actual script. The name of the script doesn't quite match the name specified above (the "Script_" is missing, but that's how it should be :-).
 	@script(
 		description=_("opens the nvda script manager window"),
 		category=_("script manager"),
