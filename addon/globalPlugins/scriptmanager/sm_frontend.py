@@ -2,6 +2,7 @@ import datetime
 import config
 import sys
 import os
+import json
 import threading
 import time
 
@@ -678,6 +679,136 @@ class newscriptdialog(wx.Dialog):
         self.EndModal(wx.ID_CANCEL)
 
 
+class addonbuilderdialog(wx.Dialog):
+
+    FIELD_ORDER = (
+        "addon_name",
+        "addon_summary",
+        "addon_description",
+        "addon_version",
+        "addon_changelog",
+        "addon_author",
+        "addon_url",
+        "addon_sourceURL",
+        "addon_docFileName",
+        "addon_minimumNVDAVersion",
+        "addon_lastTestedNVDAVersion",
+        "addon_updateChannel",
+        "addon_license",
+        "addon_licenseURL",
+    )
+
+    FIELD_LABELS = {
+        "addon_name": _("Add-on name"),
+        "addon_summary": _("Summary"),
+        "addon_description": _("Description"),
+        "addon_version": _("Version"),
+        "addon_changelog": _("Changelog"),
+        "addon_author": _("Author"),
+        "addon_url": _("URL"),
+        "addon_sourceURL": _("Source URL"),
+        "addon_docFileName": _("Documentation filename"),
+        "addon_minimumNVDAVersion": _("Minimum NVDA version"),
+        "addon_lastTestedNVDAVersion": _("Last tested NVDA version"),
+        "addon_updateChannel": _("Update channel"),
+        "addon_license": _("License"),
+        "addon_licenseURL": _("License URL"),
+    }
+
+    MULTILINE_FIELDS = {"addon_description", "addon_changelog"}
+
+    def __init__(self, parent, manifest_data, output_path, install_for_testing=True):
+        super(addonbuilderdialog, self).__init__(
+            parent,
+            wx.ID_ANY,
+            _("Build Add-on from scratchpad"),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+
+        self._controls = {}
+
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        scroll = wx.ScrolledWindow(self, style=wx.VSCROLL)
+        scroll.SetScrollRate(10, 10)
+
+        form_sizer = wx.FlexGridSizer(rows=0, cols=2, vgap=6, hgap=10)
+        form_sizer.AddGrowableCol(1, 1)
+
+        for field_name in self.FIELD_ORDER:
+            label = wx.StaticText(scroll, label=self.FIELD_LABELS[field_name] + ":")
+            style = wx.TE_MULTILINE | wx.TE_WORDWRAP if field_name in self.MULTILINE_FIELDS else 0
+            value = str(manifest_data.get(field_name, "") if manifest_data else "")
+            control = wx.TextCtrl(scroll, value=value, style=style)
+            if field_name in self.MULTILINE_FIELDS:
+                control.SetMinSize((420, 70))
+            form_sizer.Add(label, 0, wx.ALIGN_TOP | wx.TOP, 6)
+            form_sizer.Add(control, 1, wx.EXPAND)
+            self._controls[field_name] = control
+
+        output_label = wx.StaticText(scroll, label=_("Output file") + ":")
+        output_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.output_ctrl = wx.TextCtrl(scroll, value=output_path or "")
+        browse_button = wx.Button(scroll, label=_("Browse..."))
+        output_row.Add(self.output_ctrl, 1, wx.RIGHT, 6)
+        output_row.Add(browse_button, 0)
+
+        form_sizer.Add(output_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        form_sizer.Add(output_row, 1, wx.EXPAND)
+
+        self.install_ctrl = wx.CheckBox(scroll, label=_("Install built add-on for testing"))
+        self.install_ctrl.SetValue(bool(install_for_testing))
+        form_sizer.AddSpacer(0)
+        form_sizer.Add(self.install_ctrl, 0, wx.TOP, 4)
+
+        scroll.SetSizer(form_sizer)
+        main_sizer.Add(scroll, 1, wx.EXPAND | wx.ALL, 10)
+        main_sizer.Add(self.CreateSeparatedButtonSizer(wx.OK | wx.CANCEL), 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+
+        self.SetSizer(main_sizer)
+        self.SetSize((760, 640))
+
+        self.Bind(wx.EVT_BUTTON, self.onBrowseOutput, browse_button)
+        self.Bind(wx.EVT_BUTTON, self.onOk, id=wx.ID_OK)
+        self._controls["addon_name"].SetFocus()
+
+    def onBrowseOutput(self, event):
+        wildcard = _("NVDA add-ons (*.{ext})").format(ext=addonHandler.BUNDLE_EXTENSION) + "|*.{ext}".format(ext=addonHandler.BUNDLE_EXTENSION)
+        dlg = wx.FileDialog(
+            self,
+            message=_("Choose output add-on file"),
+            defaultDir=os.path.dirname(self.output_ctrl.GetValue()) if self.output_ctrl.GetValue() else os.getcwd(),
+            defaultFile=os.path.basename(self.output_ctrl.GetValue()) if self.output_ctrl.GetValue() else "",
+            wildcard=wildcard,
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        )
+        if dlg.ShowModal() == wx.ID_OK:
+            self.output_ctrl.SetValue(dlg.GetPath())
+        dlg.Destroy()
+
+    def onOk(self, event):
+        if not self._controls["addon_name"].GetValue().strip():
+            wx.MessageBox(_("Please enter an add-on name."), _("Missing Information"), wx.OK | wx.ICON_WARNING)
+            self._controls["addon_name"].SetFocus()
+            return
+        if not self.output_ctrl.GetValue().strip():
+            wx.MessageBox(_("Please choose an output file."), _("Missing Information"), wx.OK | wx.ICON_WARNING)
+            self.output_ctrl.SetFocus()
+            return
+        self.EndModal(wx.ID_OK)
+
+    def getManifestData(self):
+        return {field_name: self._controls[field_name].GetValue().strip() for field_name in self.FIELD_ORDER}
+
+    def getOutputPath(self):
+        output_path = self.output_ctrl.GetValue().strip()
+        if output_path and not output_path.lower().endswith("." + addonHandler.BUNDLE_EXTENSION.lower()):
+            output_path += "." + addonHandler.BUNDLE_EXTENSION
+        return output_path
+
+    def shouldInstallAfterBuild(self):
+        return self.install_ctrl.GetValue()
+
+
 class scriptmanager_mainwindow(wx.Frame):
 
     def __init__(self, parent, id, title, scriptfile):
@@ -696,6 +827,7 @@ class scriptmanager_mainwindow(wx.Frame):
         filemenu.Append(
             103, _("Save &as...") + "\tctrl+shift+s", _("Save the module as a new file")
         )
+        filemenu.Append(116, _("Build add-on from scratchpad..."))
         filemenu.AppendSeparator()
         quit = wx.MenuItem(
             filemenu, 105, _("&Quit") + "\tAlt+F4", _("Quit the Application")
@@ -751,6 +883,7 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnOpenFile, id=101)
         self.Bind(wx.EVT_MENU, self.OnSaveFile, id=102)
         self.Bind(wx.EVT_MENU, self.OnSaveAsFile, id=103)
+        self.Bind(wx.EVT_MENU, self.OnBuildAddonFromScratchpad, id=116)
         self.Bind(wx.EVT_MENU, self.OnUndo, id=200)
         self.Bind(wx.EVT_MENU, self.OnRedo, id=212)
         self.Bind(wx.EVT_MENU, self.OnCut, id=201)
@@ -1370,6 +1503,88 @@ def {clean_name}(self, gesture):
                 dlg = wx.MessageDialog(self, _("Error saving file") + "\n" + str(error))
                 dlg.ShowModal()
         save_dlg.Destroy()
+
+    def OnBuildAddonFromScratchpad(self, event):
+        if self.text.IsModified() and self.text.GetValue().strip():
+            save_dlg = wx.MessageDialog(
+                self,
+                _("Save current file before building the add-on?"),
+                _("Build add-on"),
+                wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION,
+            )
+            save_choice = save_dlg.ShowModal()
+            save_dlg.Destroy()
+            if save_choice == wx.ID_CANCEL:
+                return
+            if save_choice == wx.ID_YES:
+                self.OnSaveFile(event)
+
+        manifest_data = sm_backend.get_default_addon_manifest_data()
+        metadata_path = os.path.join(config.getScratchpadDir(True), "addonBuilderMetadata.json")
+        if os.path.isfile(metadata_path):
+            try:
+                with open(metadata_path, "r", encoding="utf-8") as metadata_file:
+                    loaded_manifest = json.load(metadata_file)
+                    if isinstance(loaded_manifest, dict):
+                        manifest_data.update(loaded_manifest)
+            except Exception:
+                pass
+
+        addon_name = manifest_data.get("addon_name", "").strip() or "scratchpadAddon"
+        addon_version = manifest_data.get("addon_version", "").strip() or "1.0.0"
+        default_file_name = "{name}-{version}.{ext}".format(
+            name=addon_name,
+            version=addon_version,
+            ext=addonHandler.BUNDLE_EXTENSION,
+        )
+        default_output_path = os.path.join(os.getcwd(), default_file_name)
+
+        dlg = addonbuilderdialog(
+            self,
+            manifest_data=manifest_data,
+            output_path=default_output_path,
+            install_for_testing=True,
+        )
+        try:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            manifest_data = dlg.getManifestData()
+            output_path = dlg.getOutputPath()
+            install_after_build = dlg.shouldInstallAfterBuild()
+        finally:
+            dlg.Destroy()
+
+        try:
+            bundle_path = sm_backend.build_addon_from_scratchpad(manifest_data, output_path)
+        except Exception as error:
+            wx.MessageBox(
+                _("Building the add-on failed:\n{error}").format(error=str(error)),
+                _("Build add-on"),
+                wx.OK | wx.ICON_ERROR,
+            )
+            return
+
+        message_lines = [
+            _("Add-on build completed."),
+            bundle_path,
+        ]
+
+        if install_after_build:
+            try:
+                installed = sm_backend.install_addon_bundle_for_testing(bundle_path, self)
+                if installed:
+                    message_lines.append(_("The add-on was installed for testing."))
+                else:
+                    message_lines.append(_("The add-on was built, but installation was canceled."))
+            except Exception as error:
+                wx.MessageBox(
+                    _("Add-on was built, but installation failed:\n{error}").format(error=str(error)),
+                    _("Build add-on"),
+                    wx.OK | wx.ICON_WARNING,
+                )
+                return
+
+        wx.MessageBox("\n".join(message_lines), _("Build add-on"), wx.OK | wx.ICON_INFORMATION)
 
     def OnUndo(self, event):
         self.text.Undo()
