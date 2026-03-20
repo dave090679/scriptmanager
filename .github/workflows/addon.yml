@@ -44,11 +44,15 @@ jobs:
         id: check_release
         run: |
           $tag = "v${{ steps.version.outputs.VERSION }}"
-          $response = Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers @{"Authorization"="token ${{ secrets.GITHUB_TOKEN }}"} -ErrorAction SilentlyContinue
-          if ($response.StatusCode -eq 200) {
+          try {
+            $response = Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers @{"Authorization"="token ${{ secrets.GITHUB_TOKEN }}"} -ErrorAction Stop
             echo "exists=true" >> $GITHUB_OUTPUT
-          } else {
-            echo "exists=false" >> $GITHUB_OUTPUT
+          } catch {
+            if ($_.Exception.Response.StatusCode -eq 404) {
+              echo "exists=false" >> $GITHUB_OUTPUT
+            } else {
+              throw $_
+            }
           }
         shell: powershell
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -63,5 +67,5 @@ jobs:
           draft: false
           prerelease: ${{ contains(steps.version.outputs.VERSION, 'dev') }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     

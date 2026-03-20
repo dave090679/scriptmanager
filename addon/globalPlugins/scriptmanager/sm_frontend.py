@@ -474,7 +474,13 @@ class newscriptdialog(wx.Dialog):
         self.script_name = ""
         self.script_description = ""
         self.script_gesture = ""
+        self.script_gestures = []
         self.script_category = ""
+        self.script_canPropagate = False
+        self.script_bypassInputHelp = False
+        self.script_allowInSleepMode = False
+        self.script_resumeSayAllMode = ""
+        self.script_speakOnDemand = False
         self.captured_key = None
         self.key_capture_active = False
         
@@ -518,6 +524,38 @@ class newscriptdialog(wx.Dialog):
         category_sizer.Add(category_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
         category_sizer.Add(self.category_ctrl, 1, wx.EXPAND)
         main_sizer.Add(category_sizer, 0, wx.EXPAND | wx.ALL, 5)
+
+        # Zusätzliche Gesten
+        gestures_label = wx.StaticText(self, label=_("Additional &gestures (comma-separated):"))
+        self.gestures_ctrl = wx.TextCtrl(self, value="")
+        main_sizer.Add(gestures_label, 0, wx.ALL, 5)
+        main_sizer.Add(self.gestures_ctrl, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
+        # Erweiterte Script-Optionen
+        advanced_box = wx.StaticBoxSizer(wx.StaticBox(self, label=_("Advanced script options")), wx.VERTICAL)
+        self.can_propagate_ctrl = wx.CheckBox(self, label=_("Script can &propagate to focus ancestors"))
+        self.bypass_input_help_ctrl = wx.CheckBox(self, label=_("&Bypass input help"))
+        self.allow_sleep_mode_ctrl = wx.CheckBox(self, label=_("Allow in &sleep mode"))
+        self.speak_on_demand_ctrl = wx.CheckBox(self, label=_("Speak in &on-demand mode"))
+
+        advanced_box.Add(self.can_propagate_ctrl, 0, wx.ALL, 3)
+        advanced_box.Add(self.bypass_input_help_ctrl, 0, wx.ALL, 3)
+        advanced_box.Add(self.allow_sleep_mode_ctrl, 0, wx.ALL, 3)
+        advanced_box.Add(self.speak_on_demand_ctrl, 0, wx.ALL, 3)
+
+        resume_sizer = wx.BoxSizer(orient=wx.HORIZONTAL)
+        resume_label = wx.StaticText(self, label=_("&Resume say all mode:"))
+        self.resume_say_all_ctrl = wx.ComboBox(
+            self,
+            choices=["", "sayAll.CURSOR_CARET", "sayAll.CURSOR_REVIEW"],
+            value="",
+            style=wx.CB_DROPDOWN,
+        )
+        resume_sizer.Add(resume_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        resume_sizer.Add(self.resume_say_all_ctrl, 1, wx.EXPAND)
+        advanced_box.Add(resume_sizer, 0, wx.EXPAND | wx.TOP, 3)
+
+        main_sizer.Add(advanced_box, 0, wx.EXPAND | wx.ALL, 5)
         
         # Buttons
         buttons = self.CreateButtonSizer(wx.OK | wx.CANCEL)
@@ -557,15 +595,14 @@ class newscriptdialog(wx.Dialog):
         
         key_code = event.GetKeyCode()
         
-        # Tasten ignorieren, die nicht abgefangen werden sollen
-        if key_code in (wx.WXK_TAB, wx.WXK_ESCAPE, wx.WXK_RETURN):
-            if key_code == wx.WXK_ESCAPE:
-                self.onCaptureGesture(None)
+        # Tab, Shift+Tab, Enter und Esc nicht als Geste erfassen.
+        if key_code in (wx.WXK_TAB, wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             event.Skip()
             return
-        
-        # Diese Taste sollte behandelt werden
-        event.Skip = lambda: None  # Verhindern, dass die Taste weitergeleitet wird
+        if key_code == wx.WXK_ESCAPE:
+            # Esc beendet nur den Capture-Modus.
+            self.onCaptureGesture(None)
+            return
         
         # Modifikatoren sammeln
         modifiers = []
@@ -618,7 +655,16 @@ class newscriptdialog(wx.Dialog):
         self.script_name = self.name_ctrl.GetValue().strip()
         self.script_description = self.desc_ctrl.GetValue().strip()
         self.script_gesture = self.gesture_ctrl.GetValue().strip()
-        self.script_category = self.category_ctrl.GetStringSelection()
+        self.script_gestures = [
+            g.strip() for g in self.gestures_ctrl.GetValue().split(",") if g.strip()
+        ]
+        # Freie Eingabe aus dem ComboBox-Feld unterstützen.
+        self.script_category = self.category_ctrl.GetValue().strip()
+        self.script_canPropagate = self.can_propagate_ctrl.GetValue()
+        self.script_bypassInputHelp = self.bypass_input_help_ctrl.GetValue()
+        self.script_allowInSleepMode = self.allow_sleep_mode_ctrl.GetValue()
+        self.script_resumeSayAllMode = self.resume_say_all_ctrl.GetValue().strip()
+        self.script_speakOnDemand = self.speak_on_demand_ctrl.GetValue()
         
         if not self.script_name:
             wx.MessageBox(_("Please enter a script name."), _("Missing Information"))
@@ -961,7 +1007,13 @@ class scriptmanager_mainwindow(wx.Frame):
                 dlg.script_name,
                 dlg.script_description,
                 dlg.script_gesture,
-                dlg.script_category
+                dlg.script_category,
+                dlg.script_gestures,
+                dlg.script_canPropagate,
+                dlg.script_bypassInputHelp,
+                dlg.script_allowInSleepMode,
+                dlg.script_resumeSayAllMode,
+                dlg.script_speakOnDemand,
             )
             
             # Leere Datei vorbereiten
@@ -975,43 +1027,70 @@ class scriptmanager_mainwindow(wx.Frame):
         
         dlg.Destroy()
     
-    def _generateScriptTemplate(self, name, description, gesture, category):
+    def _generateScriptTemplate(
+        self,
+        name,
+        description,
+        gesture,
+        category,
+        gestures,
+        canPropagate,
+        bypassInputHelp,
+        allowInSleepMode,
+        resumeSayAllMode,
+        speakOnDemand,
+    ):
         """Generiert ein Script-Template basierend auf den Eingaben."""
         # Script-Namen bereinigen (nur alphanumerisch und Unterstriche)
         clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
         clean_name = clean_name.lower()
         if not clean_name.startswith('script_'):
             clean_name = 'script_' + clean_name
-        
-        # Gesture formatieren (wenn vorhanden, sonst auskommentieren)
-        if gesture:
-            gesture_line = f',\n    gesture="{gesture}"'
-        else:
-            gesture_line = ''
-        
-        # Template basierend auf Beschreibung (einzeilig vs mehrzeilig)
+
+        # Dekorator-Parameter dynamisch aus Dialogfeldern zusammensetzen.
+        args = []
         if '\n' in description:
-            # Mehrzeilige Beschreibung mit Triple-Quotes
-            desc_str = 'Description=_(\"\"\"%s\"\"\")' % description
-            template = f'''@scriptHandler.script(
-    {desc_str},
-    category=_("{category}"){gesture_line}
-)
-def {clean_name}(self, gesture):
-    """Script: {name}"""
-    pass
-'''
+            safe_description = description.replace('"""', '\\"\\"\\"')
+            args.append(f'description=_("""{safe_description}""")')
         else:
-            # Einzeilige Beschreibung
-            template = f'''@scriptHandler.script(
-    description=_("{description}"),
-    category=_("{category}"){gesture_line}
+            safe_description = description.replace('"', '\\"')
+            args.append(f'description=_("{safe_description}")')
+
+        if category:
+            safe_category = category.replace('"', '\\"')
+            args.append(f'category=_("{safe_category}")')
+        if gesture:
+            safe_gesture = gesture.replace('"', '\\"')
+            args.append(f'gesture="{safe_gesture}"')
+        if gestures:
+            gesture_entries = ', '.join(
+                ['"%s"' % g.replace('"', '\\"') for g in gestures]
+            )
+            args.append(f'gestures=[{gesture_entries}]')
+        if canPropagate:
+            args.append('canPropagate=True')
+        if bypassInputHelp:
+            args.append('bypassInputHelp=True')
+        if allowInSleepMode:
+            args.append('allowInSleepMode=True')
+        if resumeSayAllMode:
+            args.append(f'resumeSayAllMode={resumeSayAllMode}')
+        if speakOnDemand:
+            args.append('speakOnDemand=True')
+
+        if not args:
+            args.append('description=_("")')
+
+        args_str = ',\n    '.join(args)
+        safe_name = name.replace('"', '\\"')
+        template = f'''@script(
+    {args_str}
 )
 def {clean_name}(self, gesture):
-    """Script: {name}"""
+    """Script: {safe_name}"""
     pass
 '''
-        
+
         return template
 
     def OnFinditem(self, event):

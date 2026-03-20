@@ -29,6 +29,9 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install scons Markdown flake8 flake8-tabs configobj gettext-windows
 
+      - name: Lint with flake8
+        run: flake8 --exit-zero addon
+
       - name: Build add-on
         run: scons
 
@@ -41,11 +44,15 @@ jobs:
         id: check_release
         run: |
           $tag = "v${{ steps.version.outputs.VERSION }}"
-          $response = Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers @{"Authorization"="token ${{ secrets.GITHUB_TOKEN }}"} -ErrorAction SilentlyContinue
-          if ($response.StatusCode -eq 200) {
+          try {
+            $response = Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers @{"Authorization"="token ${{ secrets.GITHUB_TOKEN }}"} -ErrorAction Stop
             echo "exists=true" >> $GITHUB_OUTPUT
-          } else {
-            echo "exists=false" >> $GITHUB_OUTPUT
+          } catch {
+            if ($_.Exception.Response.StatusCode -eq 404) {
+              echo "exists=false" >> $GITHUB_OUTPUT
+            } else {
+              throw $_
+            }
           }
         shell: powershell
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
