@@ -1,11 +1,9 @@
 import datetime
-import config
 import sys
 import os
-import json
+import shutil
 import threading
 import time
-
 impPath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(impPath)
 import sm_backend
@@ -14,23 +12,23 @@ import gui
 import wx
 import inspect
 import addonHandler
+import addonAPIVersion
 import re
-
+from gui import guiHelper
 addonHandler.initTranslation()
 
 
 class insertfunctionsdialog(wx.Dialog):
     functionstring = ""
 
-    def __init__(self, parent, id, title):
+    def __init__(self, parent, id, title, includeBlacklistedModules=False, translateDocstrings=False):
         super(insertfunctionsdialog, self).__init__(parent, id, title)
-        mainsizer = wx.BoxSizer(orient=wx.VERTICAL)
-        self.tree = wx.TreeCtrl(self, style=wx.TR_SINGLE | wx.TR_NO_BUTTONS)
-        rootnode = self.tree.AddRoot(text="root")
-        self.rootnode = rootnode
         self.tree_initialized = False
         self.dialog_closed = False
-        
+        self.includeBlacklistedModules = bool(includeBlacklistedModules)
+        self.translateDocstrings = bool(translateDocstrings)
+        self._doc_translation_cache = {}
+
         # Blacklist certain modules that cause problems
         self.blacklist = {
             "ctypes",
@@ -43,22 +41,28 @@ class insertfunctionsdialog(wx.Dialog):
             "numpy",
             "pandas",
         }
-        
+
         # Marker for loaded nodes
         self.loaded_nodes = set()
-        
+
+        mainSizer = wx.BoxSizer(wx.VERTICAL)
+        sHelper = guiHelper.BoxSizerHelper(self, wx.VERTICAL)
+
+        self.tree = wx.TreeCtrl(self, style=wx.TR_SINGLE | wx.TR_NO_BUTTONS)
+        sHelper.addItem(self.tree, flag=wx.EXPAND, proportion=1)
+        rootnode = self.tree.AddRoot(text="root")
+        self.rootnode = rootnode
         # Create a placeholder child for root so it's expandable
         placeholder = self.tree.AppendItem(parent=self.rootnode, text="[Loading modules...]")
         self.tree.SetItemData(placeholder, "placeholder")
 
-        self.help_text = wx.TextCtrl(
-            self, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_WORDWRAP
-        )
-        mainsizer.Add(self.tree, 1, wx.EXPAND)
-        mainsizer.Add(self.help_text, 1, wx.EXPAND)
-        buttons = self.CreateButtonSizer(wx.OK | wx.CANCEL)
-        mainsizer.Add(buttons)
-        self.SetSizer(mainsizer)
+        self.help_text = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_WORDWRAP)
+        sHelper.addItem(self.help_text, flag=wx.EXPAND, proportion=1)
+
+        sHelper.addDialogDismissButtons(wx.OK | wx.CANCEL, separated=True)
+        mainSizer.Add(sHelper.sizer, border=guiHelper.BORDER_FOR_DIALOGS, flag=wx.ALL)
+        mainSizer.Fit(self)
+        self.SetSizer(mainSizer)
         self.SetAffirmativeId(wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.onOk, id=wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.onCancel, id=wx.ID_CANCEL)
@@ -87,7 +91,7 @@ class insertfunctionsdialog(wx.Dialog):
             if self.dialog_closed:
                 return
             
-            if m in self.blacklist or m.startswith("_"):
+            if (not self.includeBlacklistedModules and m in self.blacklist) or m.startswith("_"):
                 continue
             
             try:
@@ -386,7 +390,7 @@ class insertfunctionsdialog(wx.Dialog):
                 mod_name = self.tree.GetItemText(item)
                 mod = sys.modules.get(mod_name)
                 if mod and mod.__doc__:
-                    self.help_text.SetValue(mod.__doc__)
+                    self._set_help_text(mod.__doc__)
                 else:
                     self.help_text.SetValue(_("No help available"))
             else:
@@ -400,7 +404,7 @@ class insertfunctionsdialog(wx.Dialog):
                         func = getattr(mod, func_name)
                         doc = inspect.getdoc(func)
                         if doc:
-                            self.help_text.SetValue(doc)
+                            self._set_help_text(doc)
                         else:
                             self.help_text.SetValue(_("No help available"))
                     else:
@@ -414,7 +418,7 @@ class insertfunctionsdialog(wx.Dialog):
                         cls = getattr(mod, class_name)
                         doc = inspect.getdoc(cls)
                         if doc:
-                            self.help_text.SetValue(doc)
+                            self._set_help_text(doc)
                         else:
                             self.help_text.SetValue(_("No help available"))
                     else:
@@ -433,7 +437,7 @@ class insertfunctionsdialog(wx.Dialog):
                             member = getattr(cls, member_name)
                             doc = inspect.getdoc(member)
                             if doc:
-                                self.help_text.SetValue(doc)
+                                self._set_help_text(doc)
                             else:
                                 self.help_text.SetValue(_("No help available"))
                         else:
@@ -442,6 +446,20 @@ class insertfunctionsdialog(wx.Dialog):
                         self.help_text.SetValue(_("Error"))
                 else:
                     self.help_text.SetValue(_("No help available"))
+
+    def _set_help_text(self, text):
+        if not text:
+            self.help_text.SetValue("")
+            return
+        if not self.translateDocstrings:
+            self.help_text.SetValue(text)
+            return
+        cached = self._doc_translation_cache.get(text)
+        if cached is None:
+            translated = sm_backend.translate_text_with_google(text, targetLanguage=sm_backend.get_nvda_ui_language_code())
+            cached = translated if translated else text
+            self._doc_translation_cache[text] = cached
+        self.help_text.SetValue(cached)
 
 
 class newscriptdialog(wx.Dialog):
@@ -484,181 +502,300 @@ class newscriptdialog(wx.Dialog):
         self.script_speakOnDemand = False
         self.captured_key = None
         self.key_capture_active = False
+        self.gesture_identifiers = []
+        self._capture_mode = None
+        self._capture_target_index = None
+        self._active_capture_func = None
         
-        # Hauptsizer
-        main_sizer = wx.BoxSizer(orient=wx.VERTICAL)
-        
+        mainSizer = wx.BoxSizer(wx.VERTICAL)
+        sHelper = guiHelper.BoxSizerHelper(self, wx.VERTICAL)
+
         # Script-Name
-        name_sizer = wx.BoxSizer(orient=wx.HORIZONTAL)
-        name_label = wx.StaticText(self, label=_("&Script name:"))
-        self.name_ctrl = wx.TextCtrl(self, value="")
-        name_sizer.Add(name_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        name_sizer.Add(self.name_ctrl, 1, wx.EXPAND)
-        main_sizer.Add(name_sizer, 0, wx.EXPAND | wx.ALL, 5)
-        
+        self.name_ctrl = sHelper.addLabeledControl(_("&Script name:"), wx.TextCtrl)
+
         # Beschreibung
-        desc_label = wx.StaticText(self, label=_("&Description:"))
-        self.desc_ctrl = wx.TextCtrl(self, value="", style=wx.TE_MULTILINE | wx.TE_WORDWRAP)
+        self.desc_ctrl = sHelper.addLabeledControl(
+            _("&Description:"), wx.TextCtrl, style=wx.TE_MULTILINE | wx.TE_WORDWRAP
+        )
         self.desc_ctrl.SetMinSize((300, 80))
-        main_sizer.Add(desc_label, 0, wx.ALL, 5)
-        main_sizer.Add(self.desc_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
-        
-        # Tastenkombination
-        gesture_sizer = wx.BoxSizer(orient=wx.HORIZONTAL)
-        gesture_label = wx.StaticText(self, label=_("&Gesture:"))
-        self.gesture_ctrl = wx.TextCtrl(self, value="", style=wx.TE_READONLY)
-        self.gesture_capture_btn = wx.Button(self, label=_("&Capture gesture"))
-        gesture_sizer.Add(gesture_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        gesture_sizer.Add(self.gesture_ctrl, 1, wx.EXPAND | wx.RIGHT, 5)
-        gesture_sizer.Add(self.gesture_capture_btn, 0)
-        main_sizer.Add(gesture_sizer, 0, wx.EXPAND | wx.ALL, 5)
-        
+
+        # Tastenkombinationen als Liste mit Add/Edit/Delete.
+        gestureSizer = wx.StaticBoxSizer(
+            wx.StaticBox(self, label=_("&Gestures:")), wx.VERTICAL
+        )
+        gestureRowSizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.gestures_list = wx.ListBox(self, style=wx.LB_SINGLE)
+        self.gestures_list.SetMinSize((320, 90))
+        gestureButtonSizer = wx.BoxSizer(wx.VERTICAL)
+        self.gesture_add_btn = wx.Button(self, label=_("&Add (Ins)"))
+        self.gesture_edit_btn = wx.Button(self, label=_("&Edit"))
+        self.gesture_delete_btn = wx.Button(self, label=_("&Delete (Del)"))
+        gestureButtonSizer.Add(self.gesture_add_btn, flag=wx.BOTTOM, border=5)
+        gestureButtonSizer.Add(self.gesture_edit_btn, flag=wx.BOTTOM, border=5)
+        gestureButtonSizer.Add(self.gesture_delete_btn)
+        gestureRowSizer.Add(self.gestures_list, proportion=1, flag=wx.EXPAND)
+        gestureRowSizer.AddSpacer(guiHelper.SPACE_BETWEEN_BUTTONS_HORIZONTAL)
+        gestureRowSizer.Add(gestureButtonSizer, flag=wx.EXPAND)
+        gestureSizer.Add(gestureRowSizer, proportion=1, flag=wx.EXPAND)
+        self.gesture_status_ctrl = wx.TextCtrl(self, style=wx.TE_READONLY)
+        self.gesture_status_ctrl.SetValue(_("Press Add to capture a gesture."))
+        gestureSizer.Add(
+            self.gesture_status_ctrl,
+            flag=wx.EXPAND | wx.TOP,
+            border=guiHelper.SPACE_BETWEEN_ASSOCIATED_CONTROL_VERTICAL,
+        )
+        sHelper.addItem(gestureSizer, flag=wx.EXPAND)
+
         # Kategorie
-        category_sizer = wx.BoxSizer(orient=wx.HORIZONTAL)
-        category_label = wx.StaticText(self, label=_("&Category:"))
-        self.category_ctrl = wx.ComboBox(
-            self,
+        self.category_ctrl = sHelper.addLabeledControl(
+            _("&Category:"),
+            wx.ComboBox,
             choices=self.SCRIPT_CATEGORIES,
             value=self.SCRIPT_CATEGORIES[0] if self.SCRIPT_CATEGORIES else "",
-            style=wx.CB_DROPDOWN
+            style=wx.CB_DROPDOWN,
         )
-        category_sizer.Add(category_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        category_sizer.Add(self.category_ctrl, 1, wx.EXPAND)
-        main_sizer.Add(category_sizer, 0, wx.EXPAND | wx.ALL, 5)
-
-        # Zusätzliche Gesten
-        gestures_label = wx.StaticText(self, label=_("Additional &gestures (comma-separated):"))
-        self.gestures_ctrl = wx.TextCtrl(self, value="")
-        main_sizer.Add(gestures_label, 0, wx.ALL, 5)
-        main_sizer.Add(self.gestures_ctrl, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
 
         # Erweiterte Script-Optionen
-        advanced_box = wx.StaticBoxSizer(wx.StaticBox(self, label=_("Advanced script options")), wx.VERTICAL)
-        self.can_propagate_ctrl = wx.CheckBox(self, label=_("Script can &propagate to focus ancestors"))
-        self.bypass_input_help_ctrl = wx.CheckBox(self, label=_("&Bypass input help"))
-        self.allow_sleep_mode_ctrl = wx.CheckBox(self, label=_("Allow in &sleep mode"))
-        self.speak_on_demand_ctrl = wx.CheckBox(self, label=_("Speak in &on-demand mode"))
-
-        advanced_box.Add(self.can_propagate_ctrl, 0, wx.ALL, 3)
-        advanced_box.Add(self.bypass_input_help_ctrl, 0, wx.ALL, 3)
-        advanced_box.Add(self.allow_sleep_mode_ctrl, 0, wx.ALL, 3)
-        advanced_box.Add(self.speak_on_demand_ctrl, 0, wx.ALL, 3)
-
-        resume_sizer = wx.BoxSizer(orient=wx.HORIZONTAL)
-        resume_label = wx.StaticText(self, label=_("&Resume say all mode:"))
-        self.resume_say_all_ctrl = wx.ComboBox(
-            self,
+        advancedSizer = wx.StaticBoxSizer(
+            wx.StaticBox(self, label=_("Advanced script options")), wx.VERTICAL
+        )
+        advHelper = guiHelper.BoxSizerHelper(self, sizer=advancedSizer)
+        self.can_propagate_ctrl = advHelper.addItem(
+            wx.CheckBox(self, label=_("Script can &propagate to focus ancestors"))
+        )
+        self.bypass_input_help_ctrl = advHelper.addItem(
+            wx.CheckBox(self, label=_("&Bypass input help"))
+        )
+        self.allow_sleep_mode_ctrl = advHelper.addItem(
+            wx.CheckBox(self, label=_("Allow in &sleep mode"))
+        )
+        self.speak_on_demand_ctrl = advHelper.addItem(
+            wx.CheckBox(self, label=_("Speak in &on-demand mode"))
+        )
+        self.resume_say_all_ctrl = advHelper.addLabeledControl(
+            _("&Resume say all mode:"),
+            wx.ComboBox,
             choices=["", "sayAll.CURSOR_CARET", "sayAll.CURSOR_REVIEW"],
             value="",
             style=wx.CB_DROPDOWN,
         )
-        resume_sizer.Add(resume_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        resume_sizer.Add(self.resume_say_all_ctrl, 1, wx.EXPAND)
-        advanced_box.Add(resume_sizer, 0, wx.EXPAND | wx.TOP, 3)
+        sHelper.addItem(advancedSizer)
 
-        main_sizer.Add(advanced_box, 0, wx.EXPAND | wx.ALL, 5)
-        
-        # Buttons
-        buttons = self.CreateButtonSizer(wx.OK | wx.CANCEL)
-        main_sizer.Add(buttons, 0, wx.EXPAND | wx.ALL, 5)
-        
-        # Sizer setzen
-        self.SetSizer(main_sizer)
+        sHelper.addDialogDismissButtons(wx.OK | wx.CANCEL, separated=True)
+        mainSizer.Add(sHelper.sizer, border=guiHelper.BORDER_FOR_DIALOGS, flag=wx.ALL)
+        mainSizer.Fit(self)
+        self.SetSizer(mainSizer)
         self.SetSize((500, 400))
-        
+
         # Event-Bindungen
-        self.Bind(wx.EVT_BUTTON, self.onCaptureGesture, self.gesture_capture_btn)
+        self.Bind(wx.EVT_BUTTON, self.onAddGesture, self.gesture_add_btn)
+        self.Bind(wx.EVT_BUTTON, self.onEditGesture, self.gesture_edit_btn)
+        self.Bind(wx.EVT_BUTTON, self.onDeleteGesture, self.gesture_delete_btn)
+        self.Bind(wx.EVT_LISTBOX, self.onGestureSelectionChanged, self.gestures_list)
+        self.Bind(wx.EVT_LISTBOX_DCLICK, self.onEditGesture, self.gestures_list)
         self.Bind(wx.EVT_BUTTON, self.onOk, id=wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.onCancel, id=wx.ID_CANCEL)
         self.Bind(wx.EVT_CHAR_HOOK, self.onCharHook)
-        
+        self.Bind(wx.EVT_WINDOW_DESTROY, self.onDestroy)
+        self._updateGestureControlsState()
+
         # Fokus auf Name-Feld
         self.name_ctrl.SetFocus()
-    
-    def onCaptureGesture(self, event):
-        """Event-Handler für Gestural-Erfassung aktivieren."""
-        self.key_capture_active = not self.key_capture_active
-        
+
+    def onAddGesture(self, event):
+        """Startet den Capture-Modus zum Hinzufügen einer Tastenkombination."""
         if self.key_capture_active:
-            self.gesture_capture_btn.SetLabel(_("&Stop capturing"))
-            self.gesture_ctrl.SetValue(_("Press a key..."))
-            self.gesture_ctrl.SetBackgroundColour(wx.Colour(255, 255, 200))
-            self.gesture_capture_btn.SetFocus()
+            self._stopCaptureGesture(canceled=True)
+            return
+        self._startCaptureGesture(mode="add")
+
+    def onEditGesture(self, event):
+        """Startet den Capture-Modus zum Ändern der selektierten Tastenkombination."""
+        if self.key_capture_active:
+            self._stopCaptureGesture(canceled=True)
+            return
+        index = self.gestures_list.GetSelection()
+        if index == -1:
+            wx.MessageBox(
+                _("Please select a gesture to edit."),
+                _("Missing Information"),
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            self.gestures_list.SetFocus()
+            return
+        self._startCaptureGesture(mode="edit", targetIndex=index)
+
+    def onDeleteGesture(self, event):
+        """Löscht die selektierte Tastenkombination."""
+        if self.key_capture_active:
+            self._stopCaptureGesture(canceled=True)
+            return
+        index = self.gestures_list.GetSelection()
+        if index == -1:
+            return
+        self.gestures_list.Delete(index)
+        del self.gesture_identifiers[index]
+        if self.gesture_identifiers:
+            next_index = min(index, len(self.gesture_identifiers) - 1)
+            self.gestures_list.SetSelection(next_index)
+        self._updateGestureControlsState()
+
+    def onGestureSelectionChanged(self, event):
+        """Aktualisiert Status und Button-Zustände nach Selektionswechsel."""
+        self._updateGestureControlsState()
+        event.Skip()
+
+    def _startCaptureGesture(self, mode, targetIndex=None):
+        """Aktiviert die Erfassung für neue oder bestehende Tastenkombinationen."""
+        inputCore = __import__("inputCore")
+        if inputCore.manager._captureFunc:
+            wx.MessageBox(
+                _("Another gesture capture is already active."),
+                _("Capture in progress"),
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+        self.key_capture_active = True
+        self._capture_mode = mode
+        self._capture_target_index = targetIndex
+        self.gesture_status_ctrl.SetValue(_("Press a key..."))
+        self.gesture_status_ctrl.SetBackgroundColour(wx.Colour(255, 255, 200))
+        self.gesture_status_ctrl.Refresh()
+        self._updateGestureControlsState()
+        self.SetFocus()
+
+        def _captureFunc(gesture):
+            # Reuse NVDA's input gesture pipeline (keyboard, braille, etc.).
+            if gesture.isModifier:
+                return False
+            inputCore.manager._captureFunc = None
+            self._active_capture_func = None
+            wx.CallAfter(self._handleCapturedGesture, gesture)
+            return False
+
+        self._active_capture_func = _captureFunc
+        inputCore.manager._captureFunc = _captureFunc
+
+    def _stopCaptureGesture(self, canceled=False, updateUI=True):
+        """Deaktiviert die Gestenerfassung."""
+        inputCore = __import__("inputCore")
+        if inputCore.manager._captureFunc == self._active_capture_func:
+            inputCore.manager._captureFunc = None
+        self._active_capture_func = None
+        self.key_capture_active = False
+        self._capture_mode = None
+        self._capture_target_index = None
+        if updateUI:
+            if canceled:
+                self.gesture_status_ctrl.SetValue(_("Capture canceled."))
+            else:
+                self.gesture_status_ctrl.SetValue(_("Ready."))
+            self.gesture_status_ctrl.SetBackgroundColour(
+                wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+            )
+            self.gesture_status_ctrl.Refresh()
+            self._updateGestureControlsState()
+
+    def _updateGestureControlsState(self):
+        """Aktualisiert aktiv/deaktiviert-Status der Gesten-Bedienelemente."""
+        hasSelection = self.gestures_list.GetSelection() != -1
+        self.gesture_add_btn.Enable(True)
+        self.gesture_edit_btn.Enable((not self.key_capture_active) and hasSelection)
+        self.gesture_delete_btn.Enable((not self.key_capture_active) and hasSelection)
+        self.gestures_list.Enable(not self.key_capture_active)
+
+    def _handleCapturedGesture(self, gesture):
+        """Verarbeitet eine mit dem NVDA-Capture-Handler erfasste Geste."""
+        gids = list(getattr(gesture, "normalizedIdentifiers", []))
+        if not gids:
+            self._stopCaptureGesture(canceled=True)
+            return
+        if len(gids) == 1:
+            self._addOrReplaceGesture(gids[0])
+            return
+
+        selected = {"done": False}
+        menu = wx.Menu()
+        for gid in gids:
+            item = menu.Append(wx.ID_ANY, self._getDisplayTextForGestureIdentifier(gid))
+
+            def _choose(evt, chosenGid=gid):
+                selected["done"] = True
+                self._addOrReplaceGesture(chosenGid)
+
+            self.Bind(wx.EVT_MENU, _choose, item)
+        self.PopupMenu(menu)
+        menu.Destroy()
+        if not selected["done"]:
+            self._addOrReplaceGesture(gids[0])
+
+    def _addOrReplaceGesture(self, gesture_identifier):
+        """Fügt eine erfasste Geste hinzu oder ersetzt die selektierte Geste."""
+        display_text = self._getDisplayTextForGestureIdentifier(gesture_identifier)
+        if self._capture_mode == "edit" and self._capture_target_index is not None:
+            if 0 <= self._capture_target_index < len(self.gesture_identifiers):
+                self.gesture_identifiers[self._capture_target_index] = gesture_identifier
+                self.gestures_list.SetString(self._capture_target_index, display_text)
+                self.gestures_list.SetSelection(self._capture_target_index)
         else:
-            self.gesture_capture_btn.SetLabel(_("&Capture gesture"))
-            self.gesture_ctrl.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW))
+            self.gesture_identifiers.append(gesture_identifier)
+            self.gestures_list.Append(display_text)
+            self.gestures_list.SetSelection(len(self.gesture_identifiers) - 1)
+        self.gesture_status_ctrl.SetValue(display_text)
+        self._stopCaptureGesture(canceled=False)
     
     def onCharHook(self, event):
         """Event-Handler für Tasteneingaben während der Erfassung."""
         if not self.key_capture_active:
+            if self.gestures_list.HasFocus():
+                key_code = event.GetKeyCode()
+                if key_code == wx.WXK_INSERT:
+                    self.onAddGesture(None)
+                    return
+                if key_code == wx.WXK_DELETE:
+                    self.onDeleteGesture(None)
+                    return
+                if key_code in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+                    self.onEditGesture(None)
+                    return
             event.Skip()
             return
-        
-        key_code = event.GetKeyCode()
-        
-        # Tab, Shift+Tab, Enter und Esc nicht als Geste erfassen.
-        if key_code in (wx.WXK_TAB, wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
-            event.Skip()
+
+        # Während aktivem Capture nur Esc lokal behandeln; alles andere via NVDA Capture-Pipeline.
+        if event.GetKeyCode() == wx.WXK_ESCAPE:
+            self._stopCaptureGesture(canceled=True)
             return
-        if key_code == wx.WXK_ESCAPE:
-            # Esc beendet nur den Capture-Modus.
-            self.onCaptureGesture(None)
-            return
-        
-        # Modifikatoren sammeln
-        modifiers = []
-        
-        if event.ControlDown():
-            modifiers.append("control")
-        if event.ShiftDown():
-            modifiers.append("shift")
-        if event.AltDown():
-            modifiers.append("alt")
-        
-        # Key name ermitteln
-        key_name = self._getKeyName(key_code)
-        
-        if key_name:
-            modifiers.append(key_name)
-            gesture_str = "+".join(modifiers)
-            self.script_gesture = "kb:" + gesture_str
-            self.gesture_ctrl.SetValue(self.script_gesture)
-            
-            # Erfassung stoppen
-            self.onCaptureGesture(None)
-    
-    def _getKeyName(self, key_code):
-        """Übersetzt WX-Key-Code zu NVDA-Key-Name."""
-        # Mapping von WX VK-Codes zu NVDA-Namen
-        key_mapping = {
-            wx.WXK_F1: "f1", wx.WXK_F2: "f2", wx.WXK_F3: "f3", wx.WXK_F4: "f4",
-            wx.WXK_F5: "f5", wx.WXK_F6: "f6", wx.WXK_F7: "f7", wx.WXK_F8: "f8",
-            wx.WXK_F9: "f9", wx.WXK_F10: "f10", wx.WXK_F11: "f11", wx.WXK_F12: "f12",
-            wx.WXK_HOME: "home", wx.WXK_END: "end",
-            wx.WXK_PAGEUP: "pageUp", wx.WXK_PAGEDOWN: "pageDown",
-            wx.WXK_UP: "upArrow", wx.WXK_DOWN: "downArrow",
-            wx.WXK_LEFT: "leftArrow", wx.WXK_RIGHT: "rightArrow",
-            wx.WXK_INSERT: "insert", wx.WXK_DELETE: "delete",
-            wx.WXK_BACK: "backspace", wx.WXK_SPACE: "space",
-        }
-        
-        if key_code in key_mapping:
-            return key_mapping[key_code]
-        
-        # Für reguläre Zeichen
-        if 32 <= key_code < 127:
-            return chr(key_code).lower()
-        
-        return None
+        event.Skip()
+
+    def _getDisplayTextForGestureIdentifier(self, identifier):
+        """Liefert menschenlesbaren Text für einen Gesture-Identifier im Format 'Tastenkombination (Schema)'."""
+        try:
+            inputCore = __import__("inputCore")
+            source, gesture_text = inputCore.getDisplayTextForGestureIdentifier(identifier)
+            if gesture_text:
+                if source:
+                    return f"{gesture_text} ({source})"
+                return gesture_text
+        except Exception:
+            pass
+        return identifier
     
     def onOk(self, event):
         """Event-Handler für OK-Button."""
+        if self.key_capture_active:
+            self._stopCaptureGesture(canceled=True)
         self.script_name = self.name_ctrl.GetValue().strip()
         self.script_description = self.desc_ctrl.GetValue().strip()
-        self.script_gesture = self.gesture_ctrl.GetValue().strip()
-        self.script_gestures = [
-            g.strip() for g in self.gestures_ctrl.GetValue().split(",") if g.strip()
-        ]
+        gesture_count = len(self.gesture_identifiers)
+        if gesture_count == 0:
+            self.script_gesture = ""
+            self.script_gestures = []
+        elif gesture_count == 1:
+            self.script_gesture = self.gesture_identifiers[0]
+            self.script_gestures = []
+        else:
+            self.script_gesture = ""
+            self.script_gestures = list(self.gesture_identifiers)
         # Freie Eingabe aus dem ComboBox-Feld unterstützen.
         self.script_category = self.category_ctrl.GetValue().strip()
         self.script_canPropagate = self.can_propagate_ctrl.GetValue()
@@ -676,200 +813,358 @@ class newscriptdialog(wx.Dialog):
     
     def onCancel(self, event):
         """Event-Handler für Cancel-Button."""
+        if self.key_capture_active:
+            self._stopCaptureGesture(canceled=True)
         self.EndModal(wx.ID_CANCEL)
 
+    def onDestroy(self, event):
+        """Räumt aktive Gesture-Capture-Callbacks bei Dialogzerstörung auf."""
+        if self.key_capture_active:
+            self._stopCaptureGesture(canceled=True, updateUI=False)
+        event.Skip()
 
-class addonbuilderdialog(wx.Dialog):
 
-    FIELD_ORDER = (
-        "addon_name",
-        "addon_summary",
-        "addon_description",
-        "addon_version",
-        "addon_changelog",
-        "addon_author",
-        "addon_url",
-        "addon_sourceURL",
-        "addon_docFileName",
-        "addon_minimumNVDAVersion",
-        "addon_lastTestedNVDAVersion",
-        "addon_updateChannel",
-        "addon_license",
-        "addon_licenseURL",
-    )
+class addonmanifestdialog(wx.Dialog):
 
-    FIELD_LABELS = {
-        "addon_name": _("Add-on name"),
-        "addon_summary": _("Summary"),
-        "addon_description": _("Description"),
-        "addon_version": _("Version"),
-        "addon_changelog": _("Changelog"),
-        "addon_author": _("Author"),
-        "addon_url": _("URL"),
-        "addon_sourceURL": _("Source URL"),
-        "addon_docFileName": _("Documentation filename"),
-        "addon_minimumNVDAVersion": _("Minimum NVDA version"),
-        "addon_lastTestedNVDAVersion": _("Last tested NVDA version"),
-        "addon_updateChannel": _("Update channel"),
-        "addon_license": _("License"),
-        "addon_licenseURL": _("License URL"),
-    }
+    UPDATE_CHANNEL_CHOICES = ["", "dev"]
 
-    MULTILINE_FIELDS = {"addon_description", "addon_changelog"}
-
-    def __init__(self, parent, manifest_data, output_path, install_for_testing=True):
-        super(addonbuilderdialog, self).__init__(
+    def __init__(self, parent, id, title, defaults=None):
+        super(addonmanifestdialog, self).__init__(
             parent,
-            wx.ID_ANY,
-            _("Build Add-on from scratchpad"),
+            id,
+            title,
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
+        self.manifest_data = sm_backend.get_default_addon_manifest_data()
+        if defaults:
+            self.manifest_data.update(defaults)
 
-        self._controls = {}
+        mainSizer = wx.BoxSizer(wx.VERTICAL)
+        panel = wx.ScrolledWindow(self, style=wx.VSCROLL)
+        panel.SetScrollRate(20, 20)
+        panelSizer = wx.BoxSizer(wx.VERTICAL)
+        sHelper = guiHelper.BoxSizerHelper(panel, wx.VERTICAL)
 
-        main_sizer = wx.BoxSizer(wx.VERTICAL)
-        scroll = wx.ScrolledWindow(self, style=wx.VSCROLL)
-        scroll.SetScrollRate(10, 10)
-
-        form_sizer = wx.FlexGridSizer(rows=0, cols=2, vgap=6, hgap=10)
-        form_sizer.AddGrowableCol(1, 1)
-
-        for field_name in self.FIELD_ORDER:
-            label = wx.StaticText(scroll, label=self.FIELD_LABELS[field_name] + ":")
-            style = wx.TE_MULTILINE | wx.TE_WORDWRAP if field_name in self.MULTILINE_FIELDS else 0
-            value = str(manifest_data.get(field_name, "") if manifest_data else "")
-            control = wx.TextCtrl(scroll, value=value, style=style)
-            if field_name in self.MULTILINE_FIELDS:
-                control.SetMinSize((420, 70))
-            form_sizer.Add(label, 0, wx.ALIGN_TOP | wx.TOP, 6)
-            form_sizer.Add(control, 1, wx.EXPAND)
-            self._controls[field_name] = control
-
-        output_label = wx.StaticText(scroll, label=_("Output file") + ":")
-        output_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.output_ctrl = wx.TextCtrl(scroll, value=output_path or "")
-        browse_button = wx.Button(scroll, label=_("Browse..."))
-        output_row.Add(self.output_ctrl, 1, wx.RIGHT, 6)
-        output_row.Add(browse_button, 0)
-
-        form_sizer.Add(output_label, 0, wx.ALIGN_CENTER_VERTICAL)
-        form_sizer.Add(output_row, 1, wx.EXPAND)
-
-        self.install_ctrl = wx.CheckBox(scroll, label=_("Install built add-on for testing"))
-        self.install_ctrl.SetValue(bool(install_for_testing))
-        form_sizer.AddSpacer(0)
-        form_sizer.Add(self.install_ctrl, 0, wx.TOP, 4)
-
-        scroll.SetSizer(form_sizer)
-        main_sizer.Add(scroll, 1, wx.EXPAND | wx.ALL, 10)
-        main_sizer.Add(self.CreateSeparatedButtonSizer(wx.OK | wx.CANCEL), 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-
-        self.SetSizer(main_sizer)
-        self.SetSize((760, 640))
-
-        self.Bind(wx.EVT_BUTTON, self.onBrowseOutput, browse_button)
-        self.Bind(wx.EVT_BUTTON, self.onOk, id=wx.ID_OK)
-        self._controls["addon_name"].SetFocus()
-
-    def onBrowseOutput(self, event):
-        wildcard = _("NVDA add-ons (*.{ext})").format(ext=addonHandler.BUNDLE_EXTENSION) + "|*.{ext}".format(ext=addonHandler.BUNDLE_EXTENSION)
-        dlg = wx.FileDialog(
-            self,
-            message=_("Choose output add-on file"),
-            defaultDir=os.path.dirname(self.output_ctrl.GetValue()) if self.output_ctrl.GetValue() else os.getcwd(),
-            defaultFile=os.path.basename(self.output_ctrl.GetValue()) if self.output_ctrl.GetValue() else "",
-            wildcard=wildcard,
-            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        self.addon_name_ctrl = sHelper.addLabeledControl(
+            _("Add-on &name:"), wx.TextCtrl, value=self.manifest_data["addon_name"]
         )
-        if dlg.ShowModal() == wx.ID_OK:
-            self.output_ctrl.SetValue(dlg.GetPath())
-        dlg.Destroy()
+        self.addon_summary_ctrl = sHelper.addLabeledControl(
+            _("Add-on &summary:"), wx.TextCtrl, value=self.manifest_data["addon_summary"]
+        )
+        self.addon_description_ctrl = sHelper.addLabeledControl(
+            _("Add-on &description:"),
+            wx.TextCtrl,
+            value=self.manifest_data["addon_description"],
+            style=wx.TE_MULTILINE | wx.TE_WORDWRAP,
+        )
+        self.addon_description_ctrl.SetMinSize((420, 90))
+        self.addon_version_ctrl = sHelper.addLabeledControl(
+            _("Add-on &version:"), wx.TextCtrl, value=self.manifest_data["addon_version"]
+        )
+        self.addon_author_ctrl = sHelper.addLabeledControl(
+            _("Add-on &author:"), wx.TextCtrl, value=self.manifest_data["addon_author"]
+        )
+        self.addon_url_ctrl = sHelper.addLabeledControl(
+            _("Support &URL:"), wx.TextCtrl, value=self.manifest_data["addon_url"]
+        )
+        self.addon_source_url_ctrl = sHelper.addLabeledControl(
+            _("Source &URL:"), wx.TextCtrl, value=self.manifest_data["addon_sourceURL"]
+        )
+        self.addon_doc_file_ctrl = sHelper.addLabeledControl(
+            _("&Documentation file:"), wx.TextCtrl, value=self.manifest_data["addon_docFileName"]
+        )
+        self.addon_minimum_nvda_ctrl = sHelper.addLabeledControl(
+            _("&Minimum NVDA version:"),
+            wx.TextCtrl,
+            value=self.manifest_data["addon_minimumNVDAVersion"],
+        )
+        self.addon_last_tested_ctrl = sHelper.addLabeledControl(
+            _("&Last tested NVDA version:"),
+            wx.TextCtrl,
+            value=self.manifest_data["addon_lastTestedNVDAVersion"],
+        )
+        self.addon_update_channel_ctrl = sHelper.addLabeledControl(
+            _("&Update channel:"),
+            wx.ComboBox,
+            choices=self.UPDATE_CHANNEL_CHOICES,
+            value=self.manifest_data["addon_updateChannel"],
+            style=wx.CB_DROPDOWN,
+        )
+        self.addon_changelog_ctrl = sHelper.addLabeledControl(
+            _("&Changelog:"),
+            wx.TextCtrl,
+            value=self.manifest_data["addon_changelog"],
+            style=wx.TE_MULTILINE | wx.TE_WORDWRAP,
+        )
+        self.addon_changelog_ctrl.SetMinSize((420, 80))
+        self.addon_license_ctrl = sHelper.addLabeledControl(
+            _("&License:"), wx.TextCtrl, value=self.manifest_data["addon_license"]
+        )
+        self.addon_license_url_ctrl = sHelper.addLabeledControl(
+            _("License U&RL:"), wx.TextCtrl, value=self.manifest_data["addon_licenseURL"]
+        )
+
+        panelSizer.Add(
+            sHelper.sizer,
+            border=guiHelper.BORDER_FOR_DIALOGS,
+            flag=wx.ALL | wx.EXPAND,
+        )
+        panel.SetSizer(panelSizer)
+        panel.FitInside()
+
+        mainSizer.Add(panel, proportion=1, flag=wx.EXPAND)
+        mainSizer.Add(
+            self.CreateButtonSizer(wx.OK | wx.CANCEL),
+            flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            border=guiHelper.BORDER_FOR_DIALOGS,
+        )
+        self.SetSizer(mainSizer)
+        self.SetSize((620, 700))
+
+        self.Bind(wx.EVT_BUTTON, self.onOk, id=wx.ID_OK)
+        self.Bind(wx.EVT_BUTTON, self.onCancel, id=wx.ID_CANCEL)
+        self.addon_name_ctrl.SetFocus()
 
     def onOk(self, event):
-        if not self._controls["addon_name"].GetValue().strip():
-            wx.MessageBox(_("Please enter an add-on name."), _("Missing Information"), wx.OK | wx.ICON_WARNING)
-            self._controls["addon_name"].SetFocus()
+        manifest_data = {
+            "addon_name": self.addon_name_ctrl.GetValue().strip(),
+            "addon_summary": self.addon_summary_ctrl.GetValue().strip(),
+            "addon_description": self.addon_description_ctrl.GetValue().strip(),
+            "addon_version": self.addon_version_ctrl.GetValue().strip(),
+            "addon_changelog": self.addon_changelog_ctrl.GetValue().strip(),
+            "addon_author": self.addon_author_ctrl.GetValue().strip(),
+            "addon_url": self.addon_url_ctrl.GetValue().strip(),
+            "addon_sourceURL": self.addon_source_url_ctrl.GetValue().strip(),
+            "addon_docFileName": self.addon_doc_file_ctrl.GetValue().strip(),
+            "addon_minimumNVDAVersion": self.addon_minimum_nvda_ctrl.GetValue().strip(),
+            "addon_lastTestedNVDAVersion": self.addon_last_tested_ctrl.GetValue().strip(),
+            "addon_updateChannel": self.addon_update_channel_ctrl.GetValue().strip(),
+            "addon_license": self.addon_license_ctrl.GetValue().strip(),
+            "addon_licenseURL": self.addon_license_url_ctrl.GetValue().strip(),
+        }
+
+        validation_error = self._validate_manifest_data(manifest_data)
+        if validation_error:
+            wx.MessageBox(validation_error, _("Missing Information"), wx.OK | wx.ICON_ERROR)
             return
-        if not self.output_ctrl.GetValue().strip():
-            wx.MessageBox(_("Please choose an output file."), _("Missing Information"), wx.OK | wx.ICON_WARNING)
-            self.output_ctrl.SetFocus()
-            return
+
+        self.manifest_data = manifest_data
         self.EndModal(wx.ID_OK)
 
-    def getManifestData(self):
-        return {field_name: self._controls[field_name].GetValue().strip() for field_name in self.FIELD_ORDER}
+    def onCancel(self, event):
+        self.EndModal(wx.ID_CANCEL)
 
-    def getOutputPath(self):
-        output_path = self.output_ctrl.GetValue().strip()
-        if output_path and not output_path.lower().endswith("." + addonHandler.BUNDLE_EXTENSION.lower()):
-            output_path += "." + addonHandler.BUNDLE_EXTENSION
-        return output_path
+    def _validate_manifest_data(self, manifest_data):
+        addon_name = manifest_data["addon_name"]
+        if not addon_name:
+            self.addon_name_ctrl.SetFocus()
+            return _("Please enter an add-on name.")
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", addon_name):
+            self.addon_name_ctrl.SetFocus()
+            return _("The add-on name may only contain letters, digits and underscores, and it must not start with a digit.")
+        if not manifest_data["addon_summary"]:
+            self.addon_summary_ctrl.SetFocus()
+            return _("Please enter an add-on summary.")
+        if not manifest_data["addon_version"]:
+            self.addon_version_ctrl.SetFocus()
+            return _("Please enter an add-on version.")
+        if any(char in manifest_data["addon_version"] for char in "\\/:*?\"<>|"):
+            self.addon_version_ctrl.SetFocus()
+            return _("The add-on version contains invalid filename characters.")
+        if not manifest_data["addon_author"]:
+            self.addon_author_ctrl.SetFocus()
+            return _("Please enter an add-on author.")
 
-    def shouldInstallAfterBuild(self):
-        return self.install_ctrl.GetValue()
+        for field_name, ctrl in (
+            ("addon_url", self.addon_url_ctrl),
+            ("addon_sourceURL", self.addon_source_url_ctrl),
+            ("addon_licenseURL", self.addon_license_url_ctrl),
+        ):
+            value = manifest_data[field_name]
+            if value and not value.startswith("https://"):
+                ctrl.SetFocus()
+                return _("URLs should start with https://.")
+
+        try:
+            minimum_version = addonAPIVersion.getAPIVersionTupleFromString(
+                manifest_data["addon_minimumNVDAVersion"] or "0.0.0"
+            )
+        except ValueError:
+            self.addon_minimum_nvda_ctrl.SetFocus()
+            return _("The minimum NVDA version is invalid.")
+        try:
+            last_tested_version = addonAPIVersion.getAPIVersionTupleFromString(
+                manifest_data["addon_lastTestedNVDAVersion"]
+                or manifest_data["addon_minimumNVDAVersion"]
+                or "0.0.0"
+            )
+        except ValueError:
+            self.addon_last_tested_ctrl.SetFocus()
+            return _("The last tested NVDA version is invalid.")
+        if minimum_version > last_tested_version:
+            self.addon_last_tested_ctrl.SetFocus()
+            return _("The minimum NVDA version must not be greater than the last tested NVDA version.")
+
+        return None
+
+
+class _AddonFolderHintDialog(wx.Dialog):
+    """Infobox that appears when user chooses to open the temp addon folder.
+
+    Shows instructions on how to finalize, optionally with a
+    'do not show again' checkbox when *show_hint* is True.
+    """
+
+    def __init__(self, parent, show_hint=True):
+        super().__init__(parent, title=_("Add-on folder opened"))
+        self.dont_show_again = False
+        self._show_hint = show_hint
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        if show_hint:
+            msg_text = _(
+                "The add-on folder has been opened in Explorer.\n"
+                "You can now add additional files (e.g. translations, documentation).\n\n"
+                "Click OK when you are done to create the add-on file, or Cancel to abort."
+            )
+        else:
+            msg_text = _("Click OK when you are done adding files to the folder.")
+
+        msg_ctrl = wx.StaticText(self, label=msg_text)
+        msg_ctrl.Wrap(460)
+        sizer.Add(msg_ctrl, 0, wx.ALL, 12)
+
+        if show_hint:
+            self._dont_show_cb = wx.CheckBox(self, label=_("Do not show this message again"))
+            sizer.Add(self._dont_show_cb, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+        else:
+            self._dont_show_cb = None
+
+        btn_sizer = self.CreateButtonSizer(wx.OK | wx.CANCEL)
+        sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 8)
+
+        self.SetSizer(sizer)
+        sizer.Fit(self)
+
+        self.Bind(wx.EVT_BUTTON, self._on_ok, id=wx.ID_OK)
+        self.Bind(wx.EVT_BUTTON, self._on_cancel, id=wx.ID_CANCEL)
+
+    def _on_ok(self, event):
+        if self._dont_show_cb is not None:
+            self.dont_show_again = self._dont_show_cb.GetValue()
+        self.EndModal(wx.ID_OK)
+
+    def _on_cancel(self, event):
+        if self._dont_show_cb is not None:
+            self.dont_show_again = self._dont_show_cb.GetValue()
+        self.EndModal(wx.ID_CANCEL)
 
 
 class scriptmanager_mainwindow(wx.Frame):
 
+    SCRATCHPAD_REQUIRED_MENU_IDS = (104, 111, 112, 113, 114, 115)
+
     def __init__(self, parent, id, title, scriptfile):
         wx.Frame.__init__(self, parent, id, title)
+
+        uiLanguage = sm_backend.get_nvda_ui_language_code()
+
+        def localizedShortcut(shortcut):
+            shortcut = str(shortcut or "")
+            shortcutTerms = {
+                "ctrl": "Strg" if uiLanguage == "de" else "Ctrl",
+                "shift": "Umschalt" if uiLanguage == "de" else "Shift",
+                "alt": "Alt",
+                "up": "Pfeil hoch" if uiLanguage == "de" else "Up",
+                "down": "Pfeil runter" if uiLanguage == "de" else "Down",
+            }
+
+            def normalizeShortcutPart(part):
+                normalized = str(part or "").strip()
+                lowered = normalized.lower()
+                if lowered in shortcutTerms:
+                    return shortcutTerms[lowered]
+                if re.match(r"^f\d+$", lowered):
+                    return lowered.upper()
+                if len(normalized) == 1 and normalized.isalpha():
+                    return normalized.upper()
+                return normalized
+
+            parts = [normalizeShortcutPart(part) for part in shortcut.split("+")]
+            return "+".join(parts)
+
+        def withShortcut(label, shortcut):
+            return label + "\t" + localizedShortcut(shortcut)
+
         menubar = wx.MenuBar()
         self.StatusBar()
         filemenu = wx.Menu()
         filenew = wx.Menu()
         edit = wx.Menu()
-        # scripts = wx.Menu()
+        scripts = wx.Menu()
         # view = wx.Menu()
         help = wx.Menu()
-        filemenu.AppendSubMenu(filenew, _("new"))
-        filemenu.Append(101, _("&Open") + "\tctrl+o", _("Open an appmodule"))
-        filemenu.Append(102, _("&Save") + "\tctrl+s", _("Save the appmodule"))
+        filemenu.AppendSubMenu(filenew, _("&new"))
+        filemenu.Append(101, withShortcut(_("&Open"), "ctrl+o"), _("Open an appmodule"))
+        filemenu.Append(102, withShortcut(_("&Save"), "ctrl+s"), _("Save the appmodule"))
         filemenu.Append(
-            103, _("Save &as...") + "\tctrl+shift+s", _("Save the module as a new file")
+            103, withShortcut(_("Save &as..."), "ctrl+shift+s"), _("Save the module as a new file")
         )
-        filemenu.Append(116, _("Build add-on from scratchpad..."))
+        filemenu.Append(104, _("&build add-on..."), _("Create a distributable add-on from scratchpad contents"))
         filemenu.AppendSeparator()
         quit = wx.MenuItem(
-            filemenu, 105, _("&Quit") + "\tAlt+F4", _("Quit the Application")
+            filemenu, 105, withShortcut(_("&Quit"), "Alt+F4"), _("Quit the Application")
         )
         filemenu.AppendItem(quit)
-        filenew.Append(110, _("empty file") + "\tctrl+n")
-        filenew.Append(111, _("appmodule"))
-        filenew.Append(112, _("global plugin"))
-        filenew.Append(113, _("braille display driver"))
-        filenew.Append(114, _("speech synthesizer driver"))
-        filenew.Append(115, _("visual enhancement provider"))
-        edit.Append(200, _("undo") + "\tctrl+z")
-        edit.Append(212, _("redo") + "\tctrl+y")
-        edit.Append(201, _("cut") + "\tctrl+x")
-        edit.Append(202, _("copy") + "\tctrl+c")
-        edit.Append(203, _("paste") + "\tctrl+v")
-        edit.Append(204, _("select all") + "\tctrl+a")
-        edit.Append(205, _("delete") + "\tctrl+y")
-        edit.Append(206, _("insert function...") + "\tctrl+i")
-        edit.Append(223, _("&new script") + "\tctrl+e", _("Create a new script with template"))
-        edit.Append(207, _("&find...") + "	ctrl+f")
-        findnextitem = wx.MenuItem(edit, 208, _("find next") + "\tf3")
+        filenew.Append(110, withShortcut(_("&empty file"), "ctrl+n"))
+        filenew.Append(111, _("&appmodule"))
+        filenew.Append(112, _("&global plugin"))
+        filenew.Append(113, _("&braille display driver"))
+        filenew.Append(114, _("&speech synthesizer driver"))
+        filenew.Append(115, _("&visual enhancement provider"))
+        edit.Append(200, withShortcut(_("&undo"), "ctrl+z"))
+        edit.Append(212, withShortcut(_("&redo"), "ctrl+y"))
+        edit.Append(201, withShortcut(_("cu&t"), "ctrl+x"))
+        edit.Append(202, withShortcut(_("&copy"), "ctrl+c"))
+        edit.Append(203, withShortcut(_("&paste"), "ctrl+v"))
+        edit.Append(204, withShortcut(_("select &all"), "ctrl+a"))
+        edit.Append(205, withShortcut(_("&delete"), "ctrl+y"))
+        edit.Append(206, withShortcut(_("&insert function..."), "ctrl+i"))
+        scripts.Append(223, withShortcut(_("&new script"), "ctrl+e"), _("Create a new script with template"))
+        edit.Append(207, withShortcut(_("&find..."), "ctrl+f"))
+        findnextitem = wx.MenuItem(edit, 208, withShortcut(_("find &next"), "f3"))
         findnextitem.Enable(True)
         edit.AppendItem(findnextitem)
-        findprevitem = wx.MenuItem(edit, 209, _("find previous") + "\tshift+f3")
+        findprevitem = wx.MenuItem(edit, 209, withShortcut(_("find previous"), "shift+f3"))
         findprevitem.Enable(True)
         edit.AppendItem(findprevitem)
-        edit.Append(210, _("replace\tctrl+h"))
-        edit.Append(211, _("go to Line...\tctrl+g"))
-        edit.AppendSeparator()
-        edit.Append(220, _("&next error") + "\talt+Down", _("Go to next script error"))
-        edit.Append(
-            221, _("&previous error") + "\talt+Up", _("Go to previous script error")
+        edit.Append(210, withShortcut(_("r&eplace"), "ctrl+h"))
+        edit.Append(211, withShortcut(_("go to &line..."), "ctrl+g"))
+        scripts.Append(
+            224,
+            withShortcut(_("next script"), "f2"),
+            _("Go to next script definition"),
         )
-        edit.Append(
+        scripts.Append(
+            225,
+            withShortcut(_("previous script"), "shift+f2"),
+            _("Go to previous script definition"),
+        )
+        edit.AppendSeparator()
+        scripts.Append(220, withShortcut(_("&next error"), "alt+Down"), _("Go to next script error"))
+        scripts.Append(
+            221, withShortcut(_("&previous error"), "alt+Up"), _("Go to previous script error")
+        )
+        scripts.Append(
             222,
-            _("check script errors") + "\tctrl+shift+e",
+            withShortcut(_("check script errors"), "ctrl+shift+e"),
             _("Check and display all script errors"),
         )
-        help.Append(901, _("about..."))
+        help.Append(901, _("&about..."))
         menubar.Append(filemenu, _("&File"))
         menubar.Append(edit, _("&Edit"))
+        menubar.Append(scripts, _('&Scripts'))
         menubar.Append(help, _("&Help"))
         self.SetMenuBar(menubar)
         self.Centre()
@@ -883,7 +1178,15 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnOpenFile, id=101)
         self.Bind(wx.EVT_MENU, self.OnSaveFile, id=102)
         self.Bind(wx.EVT_MENU, self.OnSaveAsFile, id=103)
-        self.Bind(wx.EVT_MENU, self.OnBuildAddonFromScratchpad, id=116)
+        self.SetAcceleratorTable(
+            wx.AcceleratorTable(
+                [
+                    (wx.ACCEL_CTRL, ord("S"), 102),
+                    (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("S"), 103),
+                ]
+            )
+        )
+        self.Bind(wx.EVT_MENU, self.OnCreateAddon, id=104)
         self.Bind(wx.EVT_MENU, self.OnUndo, id=200)
         self.Bind(wx.EVT_MENU, self.OnRedo, id=212)
         self.Bind(wx.EVT_MENU, self.OnCut, id=201)
@@ -898,6 +1201,8 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnFindpreviousitem, id=209)
         self.Bind(wx.EVT_MENU, self.OnReplaceitem, id=210)
         self.Bind(wx.EVT_MENU, self.OnGotoLineItem, id=211)
+        self.Bind(wx.EVT_MENU, self.OnNextScriptDefinition, id=224)
+        self.Bind(wx.EVT_MENU, self.OnPreviousScriptDefinition, id=225)
         self.Bind(wx.EVT_MENU, self.OnAbout, id=901)
         self.Bind(wx.EVT_MENU, self.OnNextError, id=220)
         self.Bind(wx.EVT_MENU, self.OnPreviousError, id=221)
@@ -907,6 +1212,8 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_FIND_REPLACE, self.on_replace)
         self.Bind(wx.EVT_FIND_REPLACE_ALL, self.on_find_replace_all)
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+        self.Bind(wx.EVT_ACTIVATE, self._onWindowActivate)
+        self.Bind(wx.EVT_MENU_OPEN, self._onMenuOpen)
         self.text = wx.TextCtrl(
             parent=self,
             id=1000,
@@ -915,6 +1222,7 @@ class scriptmanager_mainwindow(wx.Frame):
             style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER | wx.TE_DONTWRAP,
         )
         self.text.Bind(wx.EVT_TEXT, self.OnTextChanged)
+        self.last_name_saved = ""
         if scriptfile != "":
             self.text.LoadFile(scriptfile)
             self.last_name_saved = scriptfile
@@ -927,9 +1235,106 @@ class scriptmanager_mainwindow(wx.Frame):
         self.replace = False
         # Aktiviere Error Logging für das aktuelle Script
         sm_backend.activate_error_logging(scriptfile if scriptfile else None)
+        self._update_scratchpad_required_menu_state()
+
+    def _onWindowActivate(self, event):
+        if event.GetActive():
+            self._update_scratchpad_required_menu_state()
+        event.Skip()
+
+    def _onMenuOpen(self, event):
+        self._update_scratchpad_required_menu_state()
+        self._update_edit_menu_state()
+        event.Skip()
+
+    def _update_edit_menu_state(self):
+        """Enable/disable edit and scripts menu items according to editor state."""
+        menuBar = self.GetMenuBar()
+        if not menuBar:
+            return
+
+        has_text = bool(self.text.GetValue())
+
+        frm, to = self.text.GetSelection()
+        has_selection = frm != to
+
+        has_clipboard = False
+        try:
+            if wx.TheClipboard.Open():
+                has_clipboard = wx.TheClipboard.IsSupported(wx.DataFormat(wx.DF_TEXT))
+                wx.TheClipboard.Close()
+        except Exception:
+            pass
+
+        has_scripts = bool(self._get_script_definition_lines())
+        has_errors = bool(self.errors)
+
+        # select all (204) – only if editor has text
+        item = menuBar.FindItemById(204)
+        if item is not None:
+            item.Enable(has_text)
+
+        # cut (201) and copy (202) – only if something is selected
+        item = menuBar.FindItemById(201)
+        if item is not None:
+            item.Enable(has_selection)
+        item = menuBar.FindItemById(202)
+        if item is not None:
+            item.Enable(has_selection)
+
+        # paste (203) – only if clipboard contains text
+        item = menuBar.FindItemById(203)
+        if item is not None:
+            item.Enable(has_clipboard)
+
+        # next script (224) / previous script (225)
+        item = menuBar.FindItemById(224)
+        if item is not None:
+            item.Enable(has_scripts)
+        item = menuBar.FindItemById(225)
+        if item is not None:
+            item.Enable(has_scripts)
+
+        # next error (220) / previous error (221)
+        item = menuBar.FindItemById(220)
+        if item is not None:
+            item.Enable(has_errors)
+        item = menuBar.FindItemById(221)
+        if item is not None:
+            item.Enable(has_errors)
+
+    def _scratchpad_locked_by_policy(self):
+        return (
+            not sm_backend.is_scratchpad_enabled()
+            and sm_backend.get_scratchpad_activation_mode() == sm_backend.SCRATCHPAD_ACTIVATION_NEVER
+        )
+
+    def _update_scratchpad_required_menu_state(self):
+        shouldEnable = not self._scratchpad_locked_by_policy()
+        menuBar = self.GetMenuBar()
+        for itemId in self.SCRATCHPAD_REQUIRED_MENU_IDS:
+            menuItem = menuBar.FindItemById(itemId) if menuBar else None
+            if menuItem is not None:
+                menuItem.Enable(shouldEnable)
+
+    def _ensure_scratchpad_for_action(self, reasonText):
+        if sm_backend.ensure_scratchpad_available(parent=self, reasonText=reasonText):
+            self._update_scratchpad_required_menu_state()
+            return True
+        self._update_scratchpad_required_menu_state()
+        wx.MessageBox(
+            _("Scratchpad processing is disabled. This action is not available."),
+            _("Script Manager"),
+            wx.OK | wx.ICON_INFORMATION,
+        )
+        return False
+
+    def _get_default_file_dialog_dir(self):
+        if sm_backend.is_scratchpad_enabled():
+            return sm_backend.get_scratchpad_dir(ensure_exists=True, ensure_subdirs=True)
+        return os.path.expanduser("~")
 
     def OnNewEmptyFile(self, event):
-        file_name = os.path.basename(self.last_name_saved)
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -949,8 +1354,13 @@ class scriptmanager_mainwindow(wx.Frame):
             self.DoNewEmptyFile()
 
     def OnNewAppModule(self, event):
-        self.defaultdir = config.getScratchpadDir(True) + os.sep + "appModules"
-        self.defaultfile = _("untitled") + ".py"
+        if not self._ensure_scratchpad_for_action(_("Creating appModules requires scratchpad.")):
+            return
+        appmodule_name = self._choose_appmodule_name_for_new_file()
+        if appmodule_name is None:
+            return
+        self.defaultdir = sm_backend.get_scratchpad_subdir("appModules")
+        self.defaultfile = appmodule_name + ".py"
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -963,23 +1373,57 @@ class scriptmanager_mainwindow(wx.Frame):
                 self.OnSaveFile(event)
                 self.DoNewEmptyFile()
                 self.text.SetValue(
-                    sm_backend.createnewmodule("appModule", _("untitled"), False)
+                    sm_backend.createnewmodule("appModule", appmodule_name, False)
                 )
             elif val == wx.ID_CANCEL:
                 dlg.Destroy()
             else:
                 self.DoNewEmptyFile()
                 self.text.SetValue(
-                    sm_backend.createnewmodule("appModule", _("untitled"), False)
+                    sm_backend.createnewmodule("appModule", appmodule_name, False)
                 )
         else:
             self.DoNewEmptyFile()
             self.text.SetValue(
-                sm_backend.createnewmodule("appModule", _("untitled"), False)
+                sm_backend.createnewmodule("appModule", appmodule_name, False)
             )
 
+    def _normalize_appmodule_name(self, name):
+        normalized = re.sub(r"[^A-Za-z0-9_]", "_", str(name or "").strip())
+        if not normalized:
+            return "untitled"
+        if normalized[0].isdigit():
+            normalized = "app_" + normalized
+        return normalized
+
+    def _choose_appmodule_name_for_new_file(self):
+        app_names = sm_backend.get_running_application_names(include_focus=True)
+        choices = [_("untitled")]
+        mapped_names = ["untitled"]
+        for app_name in app_names:
+            choices.append(_("Running application: {appname}").format(appname=app_name))
+            mapped_names.append(app_name)
+
+        dlg = wx.SingleChoiceDialog(
+            self,
+            _("Choose the application for which an appModule should be created:"),
+            _("New appModule"),
+            choices,
+        )
+        try:
+            if dlg.ShowModal() != wx.ID_OK:
+                return None
+            selected_index = dlg.GetSelection()
+            if selected_index < 0:
+                return None
+            return self._normalize_appmodule_name(mapped_names[selected_index])
+        finally:
+            dlg.Destroy()
+
     def OnNewGlobalPlugin(self, event):
-        self.defaultdir = config.getScratchpadDir(True) + os.sep + "globalPlugins"
+        if not self._ensure_scratchpad_for_action(_("Creating global plugins requires scratchpad.")):
+            return
+        self.defaultdir = sm_backend.get_scratchpad_subdir("globalPlugins")
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -1008,9 +1452,9 @@ class scriptmanager_mainwindow(wx.Frame):
             )
 
     def OnNewBrailleDisplayDriver(self, event):
-        self.defaultdir = (
-            config.getScratchpadDir(True) + os.sep + "brailleDisplayDrivers"
-        )
+        if not self._ensure_scratchpad_for_action(_("Creating braille display drivers requires scratchpad.")):
+            return
+        self.defaultdir = sm_backend.get_scratchpad_subdir("brailleDisplayDrivers")
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -1043,7 +1487,9 @@ class scriptmanager_mainwindow(wx.Frame):
             )
 
     def OnNewSynthDriver(self, event):
-        self.defaultdir = config.getScratchpadDir(True) + os.sep + "synthDrivers"
+        if not self._ensure_scratchpad_for_action(_("Creating synth drivers requires scratchpad.")):
+            return
+        self.defaultdir = sm_backend.get_scratchpad_subdir("synthDrivers")
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -1072,9 +1518,9 @@ class scriptmanager_mainwindow(wx.Frame):
             )
 
     def OnNewVisionEnhancementProvider(self, event):
-        self.defaultdir = (
-            config.getScratchpadDir(True) + os.sep + "visionEnhancementProviders"
-        )
+        if not self._ensure_scratchpad_for_action(_("Creating vision enhancement providers requires scratchpad.")):
+            return
+        self.defaultdir = sm_backend.get_scratchpad_subdir("visionEnhancementProviders")
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -1150,7 +1596,7 @@ class scriptmanager_mainwindow(wx.Frame):
             )
             
             # Leere Datei vorbereiten
-            self.DoNewEmptyFile()
+            # self.DoNewEmptyFile()
             
             # Script-Template einfügen
             self.text.SetValue(script_content)
@@ -1192,14 +1638,19 @@ class scriptmanager_mainwindow(wx.Frame):
         if category:
             safe_category = category.replace('"', '\\"')
             args.append(f'category=_("{safe_category}")')
-        if gesture:
-            safe_gesture = gesture.replace('"', '\\"')
-            args.append(f'gesture="{safe_gesture}"')
-        if gestures:
+
+        normalized_gestures = [g for g in gestures if g]
+        if len(normalized_gestures) > 1:
             gesture_entries = ', '.join(
-                ['"%s"' % g.replace('"', '\\"') for g in gestures]
+                ['"%s"' % g.replace('"', '\\"') for g in normalized_gestures]
             )
             args.append(f'gestures=[{gesture_entries}]')
+        elif len(normalized_gestures) == 1:
+            safe_gesture = normalized_gestures[0].replace('"', '\\"')
+            args.append(f'gesture="{safe_gesture}"')
+        elif gesture:
+            safe_gesture = gesture.replace('"', '\\"')
+            args.append(f'gesture="{safe_gesture}"')
         if canPropagate:
             args.append('canPropagate=True')
         if bypassInputHelp:
@@ -1268,6 +1719,9 @@ def {clean_name}(self, gesture):
         self.dlg.Show()
 
     def OnFindnextitem(self, event):
+        if not hasattr(self, "frdata") or not hasattr(self, "searchresults"):
+            self.OnFinditem(event)
+            return
         self.frdata.Flags = self.frdata.Flags or FR_DOWN
         self.searchresultindex += 1
         if self.searchresultindex == len(self.searchresults):
@@ -1279,6 +1733,9 @@ def {clean_name}(self, gesture):
         self.text.SetSelection(pos, pos + len(self.frdata.FindString))
 
     def OnFindpreviousitem(self, event):
+        if not hasattr(self, "frdata") or not hasattr(self, "searchresults"):
+            self.OnFinditem(event)
+            return
         self.frdata.Flags = self.frdata.Flags or not FR_DOWN
         self.searchresultindex -= 1
         if self.searchresultindex < 0:
@@ -1397,10 +1854,174 @@ def {clean_name}(self, gesture):
             gui.messageBox(message=_("text not found"), caption=_("find"))
 
     def OnInsertFunction(self, event):
-        ifd = insertfunctionsdialog(self, id=wx.ID_ANY, title=_("insert function"))
+        ifd = insertfunctionsdialog(
+            self,
+            id=wx.ID_ANY,
+            title=_("insert function"),
+            includeBlacklistedModules=sm_backend.get_include_blacklisted_modules(),
+            translateDocstrings=sm_backend.get_translate_docstrings_enabled(),
+        )
         if ifd.ShowModal() == wx.ID_OK:
             self.text.WriteText(ifd.functionstring)
             ifd.Destroy()
+
+    def _save_if_needed_for_build(self, event):
+        if not self.modify or not self.text.GetValue():
+            return True
+        dlg = wx.MessageDialog(
+            self,
+            _("Save changes before creating the add-on?"),
+            _("Create add-on"),
+            wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION,
+        )
+        try:
+            result = dlg.ShowModal()
+        finally:
+            dlg.Destroy()
+        if result == wx.ID_YES:
+            return self.OnSaveFile(event)
+        if result == wx.ID_NO:
+            return True
+        return False
+
+    def _is_path_in_scratchpad(self, path):
+        if not path:
+            return False
+        scratchpad_dir = os.path.abspath(
+            sm_backend.get_scratchpad_dir(ensure_exists=True, ensure_subdirs=True)
+        )
+        normalized_path = os.path.abspath(path)
+        try:
+            return os.path.commonpath([scratchpad_dir, normalized_path]) == scratchpad_dir
+        except ValueError:
+            return False
+
+    def _get_addon_output_path(self, manifest_data):
+        default_file = "{name}-{version}.{extension}".format(
+            name=manifest_data["addon_name"],
+            version=manifest_data["addon_version"],
+            extension=addonHandler.BUNDLE_EXTENSION,
+        )
+        save_dialog = wx.FileDialog(
+            self,
+            message=_("Save add-on as..."),
+            defaultDir=sm_backend.get_scratchpad_dir(ensure_exists=True, ensure_subdirs=True),
+            defaultFile=default_file,
+            wildcard=_("NVDA add-on files (*.{extension})").format(extension=addonHandler.BUNDLE_EXTENSION)
+            +"|*.{extension}".format(extension=addonHandler.BUNDLE_EXTENSION),
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        )
+        try:
+            if save_dialog.ShowModal() != wx.ID_OK:
+                return None
+            path = save_dialog.GetPath()
+            expected_extension = ".{extension}".format(extension=addonHandler.BUNDLE_EXTENSION)
+            if not path.lower().endswith(expected_extension.lower()):
+                path += expected_extension
+            return path
+        finally:
+            save_dialog.Destroy()
+
+    def OnCreateAddon(self, event):
+        if not self._ensure_scratchpad_for_action(_("Building an add-on requires scratchpad.")):
+            return
+        if not self._save_if_needed_for_build(event):
+            return
+
+        if self.last_name_saved and not self._is_path_in_scratchpad(self.last_name_saved):
+            wx.MessageBox(
+                _("The currently open file is not inside the scratchpad directory. Only files from the scratchpad will be included in the add-on."),
+                _("Create add-on"),
+                wx.OK | wx.ICON_INFORMATION,
+            )
+
+        manifest_dialog = addonmanifestdialog(self, wx.ID_ANY, _("Create add-on"))
+        try:
+            if manifest_dialog.ShowModal() != wx.ID_OK:
+                return
+            output_path = self._get_addon_output_path(manifest_dialog.manifest_data)
+            if not output_path:
+                return
+            # Phase 1: prepare files in a temporary directory
+            try:
+                addon_dir, temp_dir, prepared_manifest = sm_backend.prepare_addon_build(
+                    manifest_dialog.manifest_data,
+                    output_path,
+                )
+            except Exception as error:
+                wx.MessageBox(
+                    _("The add-on could not be prepared.\n{error}").format(error=str(error)),
+                    _("Error"),
+                    wx.OK | wx.ICON_ERROR,
+                )
+                return
+        finally:
+            manifest_dialog.Destroy()
+
+        # Ask whether to finalise immediately or open the temp folder first
+        ask_dlg = wx.MessageDialog(
+            self,
+            _("The add-on folder has been prepared. Do you want to finalize the add-on now or open the folder to add additional files first?"),
+            _("Create add-on"),
+            wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION,
+        )
+        ask_dlg.SetYesNoCancelLabels(
+            _("&Finalize"),
+            _("&Open folder"),
+            _("&Cancel"),
+        )
+        choice = ask_dlg.ShowModal()
+        ask_dlg.Destroy()
+
+        if choice == wx.ID_CANCEL:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            return
+
+        if choice == wx.ID_NO:
+            # Open the prepared folder in Explorer so the user can add files
+            os.startfile(addon_dir)
+
+            show_hint = sm_backend.get_show_addon_folder_hint()
+            hint_dlg = _AddonFolderHintDialog(self, show_hint=show_hint)
+            hint_result = hint_dlg.ShowModal()
+            dont_show_again = hint_dlg.dont_show_again
+            hint_dlg.Destroy()
+
+            if dont_show_again and show_hint:
+                sm_backend.set_show_addon_folder_hint(False)
+
+            if hint_result != wx.ID_OK:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return
+
+        # Phase 2: create the bundle from the (possibly modified) folder
+        try:
+            bundle_path = sm_backend.finalize_addon_build(
+                addon_dir, temp_dir, prepared_manifest, output_path
+            )
+        except Exception as error:
+            wx.MessageBox(
+                _("The add-on could not be created.\n{error}").format(error=str(error)),
+                _("Error"),
+                wx.OK | wx.ICON_ERROR,
+            )
+            return
+
+        if wx.MessageBox(
+            _("The add-on was created successfully at:\n{path}\n\nWould you like to test it now?").format(path=bundle_path),
+            _("Add-on created"),
+            wx.YES_NO | wx.ICON_QUESTION,
+        ) == wx.YES:
+            try:
+                sm_backend.install_addon_bundle_for_testing(bundle_path, gui.mainFrame)
+            except Exception as error:
+                wx.MessageBox(
+                    _("The add-on was created, but testing could not be started.\n{error}").format(error=str(error)),
+                    _("Error"),
+                    wx.OK | wx.ICON_ERROR,
+                )
+        else:
+            ui.message(_("Add-on created"))
 
     def OnOpenFile(self, event):
         if self.text.IsModified and self.text.GetValue():
@@ -1428,12 +2049,12 @@ def {clean_name}(self, gesture):
             +_("appmodule source files (*.py)")
             +"|*.py"
         )
-        dir = os.getcwd()
+        default_dir = self._get_default_file_dialog_dir()
         try:
             open_dlg = wx.FileDialog(
                 self,
                 message=_("Choose a file"),
-                defaultDir=dir,
+                defaultDir=default_dir,
                 defaultFile="",
                 wildcard=wcd,
                 style=wx.FD_OPEN | wx.FD_CHANGE_DIR | wx.FD_FILE_MUST_EXIST,
@@ -1465,20 +2086,25 @@ def {clean_name}(self, gesture):
                 )
                 self.statusbar.SetStatusText("", 1)
                 self.modify = False
-            except error:
+                return True
+            except Exception as error:
                 dlg = wx.MessageDialog(self, _("Error saving file") + "\n" + str(error))
-                dlg.ShowModal()
+                try:
+                    dlg.ShowModal()
+                finally:
+                    dlg.Destroy()
+                return False
         else:
-            self.OnSaveAsFile(event)
+            return self.OnSaveAsFile(event)
 
     def OnSaveAsFile(self, event):
         wcd = (
             _("All files(*.*)") + "|*.*|" + _("appmodule source files (*.py)") + "|*.py"
         )
         if hasattr(self, "defaultdir"):
-            dir = self.defaultdir
+            default_dir = self.defaultdir
         else:
-            dir = os.getcwd()
+            default_dir = self._get_default_file_dialog_dir()
         if hasattr(self, "defaultfile"):
             defaultfile = self.defaultfile
         else:
@@ -1486,105 +2112,31 @@ def {clean_name}(self, gesture):
         save_dlg = wx.FileDialog(
             self,
             message=_("Save file as..."),
-            defaultDir=dir,
+            defaultDir=default_dir,
             defaultFile=defaultfile,
             wildcard=wcd,
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         )
-        if save_dlg.ShowModal() == wx.ID_OK:
+        try:
+            if save_dlg.ShowModal() != wx.ID_OK:
+                return False
             path = save_dlg.GetPath()
             try:
                 self.text.SaveFile(path)
-                self.last_name_saved = os.path.basename(path)
-                self.statusbar.SetStatusText(self.last_name_saved + " " + _("saved"), 0)
+                self.last_name_saved = path
+                self.statusbar.SetStatusText(os.path.basename(path) + " " + _("saved"), 0)
                 self.statusbar.SetStatusText("", 1)
-                self.Modify = False
-            except error:
-                dlg = wx.MessageDialog(self, _("Error saving file") + "\n" + str(error))
-                dlg.ShowModal()
-        save_dlg.Destroy()
-
-    def OnBuildAddonFromScratchpad(self, event):
-        if self.text.IsModified() and self.text.GetValue().strip():
-            save_dlg = wx.MessageDialog(
-                self,
-                _("Save current file before building the add-on?"),
-                _("Build add-on"),
-                wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION,
-            )
-            save_choice = save_dlg.ShowModal()
-            save_dlg.Destroy()
-            if save_choice == wx.ID_CANCEL:
-                return
-            if save_choice == wx.ID_YES:
-                self.OnSaveFile(event)
-
-        manifest_data = sm_backend.get_default_addon_manifest_data()
-        metadata_path = os.path.join(config.getScratchpadDir(True), "addonBuilderMetadata.json")
-        if os.path.isfile(metadata_path):
-            try:
-                with open(metadata_path, "r", encoding="utf-8") as metadata_file:
-                    loaded_manifest = json.load(metadata_file)
-                    if isinstance(loaded_manifest, dict):
-                        manifest_data.update(loaded_manifest)
-            except Exception:
-                pass
-
-        addon_name = manifest_data.get("addon_name", "").strip() or "scratchpadAddon"
-        addon_version = manifest_data.get("addon_version", "").strip() or "1.0.0"
-        default_file_name = "{name}-{version}.{ext}".format(
-            name=addon_name,
-            version=addon_version,
-            ext=addonHandler.BUNDLE_EXTENSION,
-        )
-        default_output_path = os.path.join(os.getcwd(), default_file_name)
-
-        dlg = addonbuilderdialog(
-            self,
-            manifest_data=manifest_data,
-            output_path=default_output_path,
-            install_for_testing=True,
-        )
-        try:
-            if dlg.ShowModal() != wx.ID_OK:
-                return
-            manifest_data = dlg.getManifestData()
-            output_path = dlg.getOutputPath()
-            install_after_build = dlg.shouldInstallAfterBuild()
-        finally:
-            dlg.Destroy()
-
-        try:
-            bundle_path = sm_backend.build_addon_from_scratchpad(manifest_data, output_path)
-        except Exception as error:
-            wx.MessageBox(
-                _("Building the add-on failed:\n{error}").format(error=str(error)),
-                _("Build add-on"),
-                wx.OK | wx.ICON_ERROR,
-            )
-            return
-
-        message_lines = [
-            _("Add-on build completed."),
-            bundle_path,
-        ]
-
-        if install_after_build:
-            try:
-                installed = sm_backend.install_addon_bundle_for_testing(bundle_path, self)
-                if installed:
-                    message_lines.append(_("The add-on was installed for testing."))
-                else:
-                    message_lines.append(_("The add-on was built, but installation was canceled."))
+                self.modify = False
+                return True
             except Exception as error:
-                wx.MessageBox(
-                    _("Add-on was built, but installation failed:\n{error}").format(error=str(error)),
-                    _("Build add-on"),
-                    wx.OK | wx.ICON_WARNING,
-                )
-                return
-
-        wx.MessageBox("\n".join(message_lines), _("Build add-on"), wx.OK | wx.ICON_INFORMATION)
+                dlg = wx.MessageDialog(self, _("Error saving file") + "\n" + str(error))
+                try:
+                    dlg.ShowModal()
+                finally:
+                    dlg.Destroy()
+                return False
+        finally:
+            save_dlg.Destroy()
 
     def OnUndo(self, event):
         self.text.Undo()
@@ -1621,6 +2173,12 @@ def {clean_name}(self, gesture):
 
     def OnKeyDown(self, event):
         keycode = event.GetKeyCode()
+        if keycode == wx.WXK_F2:
+            if event.ShiftDown():
+                self.OnPreviousScriptDefinition(None)
+            else:
+                self.OnNextScriptDefinition(None)
+            return
         if hasattr(self, "searchresults"):
             if len(self.searchresults) > 0:
                 navkeylist = [
@@ -1687,7 +2245,7 @@ def {clean_name}(self, gesture):
         # Aktiviere Error Logging bevor wir die Fehler prüfen
         sm_backend.activate_error_logging(self.last_name_saved if self.last_name_saved else None)
         
-        self.errors, error_detail_str = sm_backend.check_script_for_errors(
+        self.errors, _error_detail_str = sm_backend.check_script_for_errors(
             script_content
         )
 
@@ -1760,6 +2318,62 @@ def {clean_name}(self, gesture):
 
         self._goto_error(self.current_error_index)
 
+    def OnNextScriptDefinition(self, event):
+        """Springt zur nächsten Scriptdefinition (def script_...)."""
+        self._goto_script_definition(forward=True)
+
+    def OnPreviousScriptDefinition(self, event):
+        """Springt zur vorherigen Scriptdefinition (def script_...)."""
+        self._goto_script_definition(forward=False)
+
+    def _get_script_definition_lines(self):
+        """Liefert alle Zeilenindizes mit Scriptdefinitionen."""
+        lines = []
+        pattern = re.compile(r"^\s*def\s+script_[a-zA-Z0-9_]*\s*\(")
+        for line_index in range(self.text.GetNumberOfLines()):
+            if pattern.match(self.text.GetLineText(line_index)):
+                lines.append(line_index)
+        return lines
+
+    def _goto_script_definition(self, forward=True):
+        """Springt zur nächsten/vorherigen Scriptdefinition und signalisiert Umbruch."""
+        script_lines = self._get_script_definition_lines()
+        if not script_lines:
+            wx.Bell()
+            msg = _("no script definitions found")
+            self.statusbar.SetStatusText(msg, 1)
+            ui.message(msg)
+            return
+
+        current_line = self.text.PositionToXY(self.text.GetInsertionPoint())[1]
+        wrapped = False
+
+        if forward:
+            target_candidates = [line for line in script_lines if line > current_line]
+            if target_candidates:
+                target_line = target_candidates[0]
+            else:
+                target_line = script_lines[0]
+                wrapped = True
+        else:
+            target_candidates = [line for line in script_lines if line < current_line]
+            if target_candidates:
+                target_line = target_candidates[-1]
+            else:
+                target_line = script_lines[-1]
+                wrapped = True
+
+        pos = self.text.XYToPosition(0, target_line)
+        self.text.SetInsertionPoint(pos)
+        self.text.SetSelection(pos, pos)
+
+        if wrapped:
+            wx.Bell()
+
+        msg = _("script definition line {line}").format(line=target_line + 1)
+        self.statusbar.SetStatusText(msg, 1)
+        ui.message(msg)
+
     def _goto_error(self, error_index):
         """Springt zu einem Fehler mit gegebenem Index."""
         if error_index < 0 or error_index >= len(self.errors):
@@ -1768,8 +2382,6 @@ def {clean_name}(self, gesture):
         error = self.errors[error_index]
         line_num = error.get("line", 1)
         message = error.get("message", "Unknown error")
-        error_type = error.get("type", "Error")
-
         # Zur Zeile springen
         try:
             pos = self.text.XYToPosition(0, line_num - 1)

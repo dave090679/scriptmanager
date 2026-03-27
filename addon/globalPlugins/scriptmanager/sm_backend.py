@@ -3,6 +3,7 @@ import addonHandler
 import addonAPIVersion
 import os
 import config
+import languageHandler
 import sys
 import api
 import appModuleHandler
@@ -17,6 +18,9 @@ import threading
 import shutil
 import json
 import html
+import urllib.parse
+import urllib.request
+import wx
 addonHandler.initTranslation()
 
 RUNTIME_MANIFEST_FIELDS = (
@@ -31,10 +35,30 @@ RUNTIME_MANIFEST_FIELDS = (
 	'docFileName',
 )
 
-LABEL_RULES_START = '# scriptmanager-label-rules-start'
-LABEL_RULES_END = '# scriptmanager-label-rules-end'
-LABEL_SUPPORT_START = '# scriptmanager-label-support-start'
-LABEL_SUPPORT_END = '# scriptmanager-label-support-end'
+SCRATCHPAD_REQUIRED_SUBDIRS = (
+	'appModules',
+	'globalPlugins',
+	'brailleDisplayDrivers',
+	'synthDrivers',
+	'visionEnhancementProviders',
+)
+
+SCRIPTMANAGER_CONFIG_SECTION = "scriptmanager"
+SCRATCHPAD_ACTIVATION_ASK = "ask"
+SCRATCHPAD_ACTIVATION_ALWAYS = "alwaysEnable"
+SCRATCHPAD_ACTIVATION_NEVER = "neverEnable"
+SCRATCHPAD_ACTIVATION_VALUES = (
+	SCRATCHPAD_ACTIVATION_ASK,
+	SCRATCHPAD_ACTIVATION_ALWAYS,
+	SCRATCHPAD_ACTIVATION_NEVER,
+)
+
+SCRIPTMANAGER_CONFIG_SPEC = {
+	"scratchpadActivation": "string(default='ask')",
+	"includeBlacklistedModules": "boolean(default=False)",
+	"translateDocstrings": "boolean(default=False)",
+	"showAddonFolderHint": "boolean(default=True)",
+}
 
 # Global error collector for the current script
 _script_error_collector = None
@@ -124,14 +148,289 @@ def get_script_error_collector():
 	return _script_error_collector
 
 
+def ensure_scriptmanager_config_spec():
+	"""Ensure Script Manager keys exist in NVDA profile config."""
+	spec = config.conf.spec
+	if SCRIPTMANAGER_CONFIG_SECTION not in spec:
+		spec[SCRIPTMANAGER_CONFIG_SECTION] = {}
+	section = spec[SCRIPTMANAGER_CONFIG_SECTION]
+	for key, value in SCRIPTMANAGER_CONFIG_SPEC.items():
+		if key not in section:
+			section[key] = value
+
+
+def _get_scriptmanager_conf():
+	ensure_scriptmanager_config_spec()
+	return config.conf[SCRIPTMANAGER_CONFIG_SECTION]
+
+
+def normalize_scratchpad_activation_mode(mode):
+	mode = str(mode or "").strip()
+	if mode in SCRATCHPAD_ACTIVATION_VALUES:
+		return mode
+	lower_mode = mode.lower()
+	if lower_mode in ("yes", "true", "always", "enable", "alwaysenable"):
+		return SCRATCHPAD_ACTIVATION_ALWAYS
+	if lower_mode in ("no", "false", "never", "disable", "neverenable"):
+		return SCRATCHPAD_ACTIVATION_NEVER
+	return SCRATCHPAD_ACTIVATION_ASK
+
+
+def get_scratchpad_activation_mode():
+	try:
+		value = _get_scriptmanager_conf().get("scratchpadActivation", SCRATCHPAD_ACTIVATION_ASK)
+	except Exception:
+		return SCRATCHPAD_ACTIVATION_ASK
+	return normalize_scratchpad_activation_mode(value)
+
+
+def set_scratchpad_activation_mode(mode):
+	_get_scriptmanager_conf()["scratchpadActivation"] = normalize_scratchpad_activation_mode(mode)
+
+
+def get_include_blacklisted_modules():
+	try:
+		return bool(_get_scriptmanager_conf().get("includeBlacklistedModules", False))
+	except Exception:
+		return False
+
+
+def set_include_blacklisted_modules(enabled):
+	_get_scriptmanager_conf()["includeBlacklistedModules"] = bool(enabled)
+
+
+def get_translate_docstrings_enabled():
+	try:
+		return bool(_get_scriptmanager_conf().get("translateDocstrings", False))
+	except Exception:
+		return False
+
+
+def set_translate_docstrings_enabled(enabled):
+	_get_scriptmanager_conf()["translateDocstrings"] = bool(enabled)
+
+
+def get_show_addon_folder_hint():
+	try:
+		return bool(_get_scriptmanager_conf().get("showAddonFolderHint", True))
+	except Exception:
+		return True
+
+
+def set_show_addon_folder_hint(enabled):
+	_get_scriptmanager_conf()["showAddonFolderHint"] = bool(enabled)
+
+
+def is_scratchpad_enabled():
+	try:
+		return bool(config.conf["development"]["enableScratchpadDir"])
+	except Exception:
+		return False
+
+
+def set_scratchpad_enabled(enabled):
+	try:
+		config.conf["development"]["enableScratchpadDir"] = bool(enabled)
+		return True
+	except Exception:
+		return False
+
+
+def _show_scratchpad_activation_dialog(parent=None, reasonText=""):
+	message = _(
+		"Script Manager needs the Scratchpad to continue this action.\n\n"
+		"Do you want to enable Scratchpad processing now?"
+	)
+	if reasonText:
+		message = "{reason}\n\n{message}".format(reason=reasonText, message=message)
+
+	dlg = wx.Dialog(parent, title=_("Enable Scratchpad processing"))
+	try:
+		mainSizer = wx.BoxSizer(wx.VERTICAL)
+		mainSizer.Add(wx.StaticText(dlg, label=message), 0, wx.ALL | wx.EXPAND, 10)
+		dontAskAgainCheckBox = wx.CheckBox(dlg, label=_("Do not show this prompt again"))
+		mainSizer.Add(dontAskAgainCheckBox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM | wx.EXPAND, 10)
+
+		buttonSizer = wx.StdDialogButtonSizer()
+		yesButton = wx.Button(dlg, wx.ID_YES)
+		yesButton.SetLabel(_("&Yes"))
+		noButton = wx.Button(dlg, wx.ID_NO)
+		noButton.SetLabel(_("&No"))
+		buttonSizer.AddButton(yesButton)
+		buttonSizer.AddButton(noButton)
+		buttonSizer.Realize()
+		mainSizer.Add(buttonSizer, 0, wx.ALL | wx.ALIGN_RIGHT, 10)
+
+		dlg.SetSizerAndFit(mainSizer)
+		dlg.SetAffirmativeId(wx.ID_YES)
+		dlg.SetEscapeId(wx.ID_NO)
+
+		result = dlg.ShowModal()
+		return result == wx.ID_YES, bool(dontAskAgainCheckBox.GetValue())
+	finally:
+		dlg.Destroy()
+
+
+def ensure_scratchpad_available(parent=None, reasonText=""):
+	"""Ensure scratchpad is enabled according to the configured policy."""
+	ensure_scriptmanager_config_spec()
+	if is_scratchpad_enabled():
+		return True
+
+	activationMode = get_scratchpad_activation_mode()
+	if activationMode == SCRATCHPAD_ACTIVATION_ALWAYS:
+		return set_scratchpad_enabled(True)
+	if activationMode == SCRATCHPAD_ACTIVATION_NEVER:
+		return False
+
+	allowEnable, dontAskAgain = _show_scratchpad_activation_dialog(parent=parent, reasonText=reasonText)
+	if allowEnable:
+		if not set_scratchpad_enabled(True):
+			return False
+		if dontAskAgain:
+			set_scratchpad_activation_mode(SCRATCHPAD_ACTIVATION_ALWAYS)
+		return True
+
+	if dontAskAgain:
+		set_scratchpad_activation_mode(SCRATCHPAD_ACTIVATION_NEVER)
+	return False
+
+
+def _normalize_target_language_code(languageCode):
+	languageCode = str(languageCode or "").replace("-", "_")
+	parts = [part for part in languageCode.split("_") if part]
+	if not parts:
+		return "en"
+	return parts[0].lower()
+
+
+def get_nvda_ui_language_code():
+	try:
+		return _normalize_target_language_code(languageHandler.getLanguage())
+	except Exception:
+		return "en"
+
+
+def translate_text_with_google(text, targetLanguage=None, timeoutSeconds=4):
+	"""Translate text via Google Translate web endpoint.
+
+	Returns the original text on failure.
+	"""
+	text = str(text or "")
+	if not text.strip():
+		return text
+	targetLanguage = _normalize_target_language_code(targetLanguage or get_nvda_ui_language_code())
+	query = urllib.parse.urlencode(
+		{
+			"client": "gtx",
+			"sl": "auto",
+			"tl": targetLanguage,
+			"dt": "t",
+			"q": text,
+		}
+	)
+	url = "https://translate.googleapis.com/translate_a/single?{query}".format(query=query)
+	request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+	try:
+		with urllib.request.urlopen(request, timeout=timeoutSeconds) as response:
+			payload = response.read().decode("utf-8", "replace")
+		data = json.loads(payload)
+		segments = data[0] if isinstance(data, list) and data else []
+		translated = "".join([segment[0] for segment in segments if isinstance(segment, list) and segment and segment[0]])
+		return translated.strip() or text
+	except Exception:
+		return text
+
+
+def get_scratchpad_dir(ensure_exists=True, ensure_subdirs=True):
+	"""Return the NVDA scratchpad directory and ensure its structure when requested."""
+	scratchpad_dir = config.getScratchpadDir(bool(ensure_exists))
+	if ensure_exists:
+		os.makedirs(scratchpad_dir, exist_ok=True)
+		if ensure_subdirs:
+			for subdir in SCRATCHPAD_REQUIRED_SUBDIRS:
+				os.makedirs(os.path.join(scratchpad_dir, subdir), exist_ok=True)
+	return scratchpad_dir
+
+
+def get_scratchpad_subdir(subdir_name, ensure_exists=True):
+	"""Return a scratchpad subdirectory and create it if requested."""
+	scratchpad_dir = get_scratchpad_dir(ensure_exists=ensure_exists, ensure_subdirs=True)
+	subdir_path = os.path.join(scratchpad_dir, subdir_name)
+	if ensure_exists:
+		os.makedirs(subdir_path, exist_ok=True)
+	return subdir_path
+
+
 def userappmoduleexists(appname):
-	userconfigfile = config.getScratchpadDir(True) + os.sep + 'appModules' + os.sep + appname + '.py'
+	userconfigfile = os.path.join(get_scratchpad_subdir('appModules'), appname + '.py')
 	if os.access(userconfigfile, os.F_OK): return userconfigfile
 	else: return None
 
 
-def get_user_appmodule_path(appname):
-	return config.getScratchpadDir(True) + os.sep + 'appModules' + os.sep + appname + '.py'
+def get_running_application_names(include_focus=True):
+	"""Return sorted app names currently known by NVDA.
+
+	This uses appModuleHandler internals when available and falls back to the
+	focused object's process name.
+	"""
+	names = set()
+
+	def _add_name(value):
+		value = str(value or '').strip()
+		if not value:
+			return
+		if value.lower() == 'unknown':
+			return
+		names.add(value)
+
+	def _extract_name_from_entry(entry):
+		if entry is None:
+			return ''
+		# Resolve weakrefs where present.
+		try:
+			if hasattr(entry, '__call__') and hasattr(entry, '__class__') and entry.__class__.__name__.lower().endswith('reference'):
+				entry = entry()
+		except Exception:
+			pass
+
+		if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+			entry = entry[1]
+
+		for attr_name in ('appName', 'appModuleName', 'name'):
+			candidate = getattr(entry, attr_name, None)
+			if candidate:
+				return candidate
+
+		module_name = getattr(entry, '__module__', '')
+		if module_name.startswith('appModules.'):
+			return module_name.split('.', 1)[1]
+		return ''
+
+	for attr_name in ('runningTable', 'runningAppModules', 'runningApplications'):
+		running = getattr(appModuleHandler, attr_name, None)
+		if not running:
+			continue
+		try:
+			entries = running.values() if hasattr(running, 'values') else running
+		except Exception:
+			entries = running
+		try:
+			for entry in entries:
+				_add_name(_extract_name_from_entry(entry))
+		except Exception:
+			pass
+
+	if include_focus:
+		try:
+			focus = api.getFocusObject()
+			process_id = getattr(focus, 'processID', 0) if focus else 0
+			if process_id:
+				_add_name(appModuleHandler.getAppNameFromProcessID(process_id, False))
+		except Exception:
+			pass
+
+	return sorted(names, key=lambda value: value.lower())
 
 
 def appmoduleprovidedbyaddon(appname):
@@ -144,8 +443,7 @@ def appmoduleprovidedbyaddon(appname):
 def copyappmodulefromaddon(appname, addon):
 	addonname = addon.manifest['name']
 	addonfullpath = addon.path + os.sep + 'appmodules' + os.sep + appname + '.py'
-	os.makedirs(config.getScratchpadDir(True) + os.sep + 'appModules', exist_ok=True)
-	userconfigfile = config.getScratchpadDir(True) + os.sep + 'appModules' + os.sep + appname + '.py'
+	userconfigfile = os.path.join(get_scratchpad_subdir('appModules'), appname + '.py')
 	fd1 = open(addonfullpath, 'r')
 	fd2 = open(userconfigfile, 'a')
 	ui.message(_("copying appmodule for {appname} from addon {addonname} to user's config folder...").format(addonname=addonname, appname=appname))
@@ -153,6 +451,18 @@ def copyappmodulefromaddon(appname, addon):
 		fd2.write(line)
 	fd2.close()
 	fd1.close()
+
+
+def disable_addon_and_create_empty_appmodule(appname, addon):
+	"""Disables the given addon and creates an empty appModule in the scratchpad."""
+	addonname = addon.manifest['name']
+	
+	# Create empty appModule file
+	createnewmodule('appModule', appname, True)
+	
+	# Disable the addon
+	addon.disable(onInstall=False)
+	ui.message(_("addon {addonname} disabled. Created empty appModule for {appname}.").format(addonname=addonname, appname=appname))
 
 
 def createnewmodule(moduletype, modulename, createfile):
@@ -184,8 +494,7 @@ def createnewmodule(moduletype, modulename, createfile):
 	]
 	text = os.linesep.join(module_template)
 	if createfile:
-		os.makedirs(config.getScratchpadDir(True) + os.sep + moduletype + 's', exist_ok=True)
-		userconfigfile = config.getScratchpadDir(True) + os.sep + moduletype + 's' + os.sep + modulename + '.py'
+		userconfigfile = os.path.join(get_scratchpad_subdir(moduletype + 's'), modulename + '.py')
 		fd1 = open(userconfigfile, 'w')
 		ui.message(_('Creating a new {moduletype}  {modulename}').format(moduletype=moduletype, modulename=modulename))
 		fd1.write(text)
@@ -252,308 +561,12 @@ def createlabelmodule(appname, focus, createfile):
 	]
 	text = os.linesep.join(module_template)
 	if createfile:
-		os.makedirs(config.getScratchpadDir(True) + os.sep + 'appModules', exist_ok=True)
-		userconfigfile = config.getScratchpadDir(True) + os.sep + 'appModules' + os.sep + appname + '.py'
+		userconfigfile = os.path.join(get_scratchpad_subdir('appModules'), appname + '.py')
 		with open(userconfigfile, 'w') as fd:
 			ui.message(_('Creating a new appModule for labeling: {appname}').format(appname=appname))
 			fd.write(text)
 	else:
 		return text
-
-
-def get_label_method_candidates(obj):
-	"""Collects selector candidates for the given object."""
-	role_name = ''
-	try:
-		role_name = str(obj.role.name).lower()
-	except Exception:
-		role_name = ''
-	return {
-		'role': role_name,
-		'automationId': _normalize_label_candidate(_get_object_attribute(obj, ('UIAAutomationId', 'automationID', 'automationId'))),
-		'controlId': _normalize_label_candidate(_get_object_attribute(obj, ('windowControlID', 'controlID', 'IAccessibleChildID'))),
-		'windowClassName': _normalize_label_candidate(_get_object_attribute(obj, ('windowClassName',))),
-	}
-
-
-def save_label_rule(appmodule_path, rule):
-	"""Adds or updates a labeling rule in the given AppModule file."""
-	if not rule:
-		raise ValueError(_('No labeling rule was provided.'))
-	selectors = dict(rule.get('selectors') or {})
-	selectors = {
-		key: value
-		for key, value in selectors.items()
-		if value not in (None, '')
-	}
-	if not selectors.get('role'):
-		raise ValueError(_('The labeling rule has no role selector.'))
-	rule_to_store = {
-		'label': str(rule.get('label') or '').strip(),
-		'method': str(rule.get('method') or '').strip(),
-		'methodCode': str(rule.get('methodCode') or '').strip(),
-		'selectors': selectors,
-	}
-	if not rule_to_store['label']:
-		raise ValueError(_('The labeling rule has no label text.'))
-
-	base_text = _read_existing_appmodule_text(appmodule_path)
-	rules = _extract_label_rules(base_text)
-	existing_index = _find_existing_rule_index(rules, selectors)
-	if existing_index is None:
-		rules.append(rule_to_store)
-		action = 'created'
-	else:
-		rules[existing_index] = rule_to_store
-		action = 'updated'
-
-	updated_text = _replace_or_append_block(base_text, LABEL_RULES_START, LABEL_RULES_END, _render_label_rules_block(rules))
-	updated_text = _replace_or_append_block(updated_text, LABEL_SUPPORT_START, LABEL_SUPPORT_END, _render_label_support_block())
-	_write_appmodule_text(appmodule_path, updated_text)
-	return action
-
-
-def _normalize_label_candidate(value):
-	if value is None:
-		return ''
-	value = str(value).strip()
-	if value.lower() == 'none':
-		return ''
-	return value
-
-
-def _get_object_attribute(obj, attribute_names):
-	for attribute_name in attribute_names:
-		try:
-			value = getattr(obj, attribute_name)
-			value = _normalize_label_candidate(value)
-			if value:
-				return value
-		except Exception:
-			pass
-	try:
-		uia_element = getattr(obj, 'UIAElement')
-		if 'UIAAutomationId' in attribute_names:
-			return _normalize_label_candidate(getattr(uia_element, 'currentAutomationId', ''))
-	except Exception:
-		pass
-	return ''
-
-
-def _read_existing_appmodule_text(appmodule_path):
-	if os.path.exists(appmodule_path):
-		with open(appmodule_path, 'r', encoding='utf-8') as appmodule_file:
-			return appmodule_file.read()
-	os.makedirs(os.path.dirname(appmodule_path), exist_ok=True)
-	return createnewmodule('appModule', os.path.splitext(os.path.basename(appmodule_path))[0], False) + os.linesep
-
-
-def _write_appmodule_text(appmodule_path, text):
-	os.makedirs(os.path.dirname(appmodule_path), exist_ok=True)
-	with open(appmodule_path, 'w', encoding='utf-8') as appmodule_file:
-		appmodule_file.write(text)
-
-
-def _extract_label_rules(text):
-	block = _extract_block(text, LABEL_RULES_START, LABEL_RULES_END)
-	if not block:
-		return []
-	match = re.search(r'SCRIPT_MANAGER_LABEL_RULES_JSON\s*=\s*r?"""\n?(.*?)\n?"""', block, re.DOTALL)
-	if not match:
-		return []
-	try:
-		data = json.loads(match.group(1))
-		if isinstance(data, list):
-			return data
-	except Exception:
-		return []
-	return []
-
-
-def _extract_block(text, start_marker, end_marker):
-	start_index = text.find(start_marker)
-	if start_index == -1:
-		return None
-	end_index = text.find(end_marker, start_index)
-	if end_index == -1:
-		return None
-	end_index += len(end_marker)
-	return text[start_index:end_index]
-
-
-def _replace_or_append_block(text, start_marker, end_marker, new_block):
-	existing_block = _extract_block(text, start_marker, end_marker)
-	if existing_block is not None:
-		return text.replace(existing_block, new_block)
-	if text and not text.endswith(os.linesep):
-		text += os.linesep
-	if text and not text.endswith(os.linesep * 2):
-		text += os.linesep
-	return text + new_block + os.linesep
-
-
-def _find_existing_rule_index(rules, selectors):
-	for index, existing_rule in enumerate(rules):
-		if dict(existing_rule.get('selectors') or {}) == selectors:
-			return index
-	return None
-
-
-def _render_label_rules_block(rules):
-	json_text = json.dumps(rules, indent=2, ensure_ascii=False, sort_keys=True)
-	return os.linesep.join([
-		LABEL_RULES_START,
-		'SCRIPT_MANAGER_LABEL_RULES_JSON = r"""',
-		json_text,
-		'"""',
-		'try:',
-			chr(9) + 'SCRIPT_MANAGER_LABEL_RULES = json.loads(SCRIPT_MANAGER_LABEL_RULES_JSON)',
-		'except Exception:',
-			chr(9) + 'SCRIPT_MANAGER_LABEL_RULES = []',
-		LABEL_RULES_END,
-	])
-
-
-def _render_label_support_block():
-	return os.linesep.join([
-		LABEL_SUPPORT_START,
-		'import appModuleHandler',
-		'import json',
-		'try:',
-			chr(9) + 'import NVDAObjects',
-		'except Exception:',
-			chr(9) + 'NVDAObjects = None',
-		'try:',
-			chr(9) + 'import NVDAObjects.UIA',
-		'except Exception:',
-			chr(9) + 'pass',
-		'try:',
-			chr(9) + 'import NVDAObjects.IAccessible',
-		'except Exception:',
-			chr(9) + 'pass',
-		'',
-		'def _scriptManager_getObjectProperty(obj, key):',
-			chr(9) + 'if key == "role":',
-			chr(9) + chr(9) + 'try:',
-			chr(9) + chr(9) + chr(9) + 'return str(obj.role.name).lower()',
-			chr(9) + chr(9) + 'except Exception:',
-			chr(9) + chr(9) + chr(9) + 'return ""',
-			chr(9) + 'try:',
-			chr(9) + chr(9) + 'value = getattr(obj, key)',
-			chr(9) + 'except Exception:',
-			chr(9) + chr(9) + 'value = ""',
-			chr(9) + 'if not value and key == "automationId":',
-			chr(9) + chr(9) + 'for attrName in ("UIAAutomationId", "automationID", "automationId"):',
-			chr(9) + chr(9) + chr(9) + 'try:',
-			chr(9) + chr(9) + chr(9) + chr(9) + 'value = getattr(obj, attrName)',
-			chr(9) + chr(9) + chr(9) + chr(9) + 'if value:',
-			chr(9) + chr(9) + chr(9) + chr(9) + chr(9) + 'break',
-			chr(9) + chr(9) + chr(9) + 'except Exception:',
-			chr(9) + chr(9) + chr(9) + chr(9) + 'pass',
-			chr(9) + chr(9) + 'if not value:',
-			chr(9) + chr(9) + chr(9) + 'try:',
-			chr(9) + chr(9) + chr(9) + chr(9) + 'value = obj.UIAElement.currentAutomationId',
-			chr(9) + chr(9) + chr(9) + 'except Exception:',
-			chr(9) + chr(9) + chr(9) + chr(9) + 'value = ""',
-			chr(9) + 'elif not value and key == "controlId":',
-			chr(9) + chr(9) + 'for attrName in ("windowControlID", "controlID", "IAccessibleChildID"):',
-			chr(9) + chr(9) + chr(9) + 'try:',
-			chr(9) + chr(9) + chr(9) + chr(9) + 'value = getattr(obj, attrName)',
-			chr(9) + chr(9) + chr(9) + chr(9) + 'if value not in (None, ""):',
-			chr(9) + chr(9) + chr(9) + chr(9) + chr(9) + 'break',
-			chr(9) + chr(9) + chr(9) + 'except Exception:',
-			chr(9) + chr(9) + chr(9) + chr(9) + 'pass',
-			chr(9) + 'elif not value and key == "windowClassName":',
-			chr(9) + chr(9) + 'try:',
-			chr(9) + chr(9) + chr(9) + 'value = obj.windowClassName',
-			chr(9) + chr(9) + 'except Exception:',
-			chr(9) + chr(9) + chr(9) + 'value = ""',
-			chr(9) + 'if value is None:',
-			chr(9) + chr(9) + 'return ""',
-			chr(9) + 'value = str(value).strip()',
-			chr(9) + 'if value.lower() == "none":',
-			chr(9) + chr(9) + 'return ""',
-			chr(9) + 'return value',
-		'',
-		'def _scriptManager_ruleMatches(obj, rule):',
-			chr(9) + 'selectors = dict(rule.get("selectors") or {})',
-			chr(9) + 'for key, expected in selectors.items():',
-			chr(9) + chr(9) + 'if _scriptManager_getObjectProperty(obj, key) != str(expected):',
-			chr(9) + chr(9) + chr(9) + 'return False',
-			chr(9) + 'return True',
-		'',
-		'def _scriptManager_getLabelForObject(obj):',
-			chr(9) + 'for rule in SCRIPT_MANAGER_LABEL_RULES:',
-			chr(9) + chr(9) + 'if _scriptManager_ruleMatches(obj, rule):',
-			chr(9) + chr(9) + chr(9) + 'return str(rule.get("label") or "")',
-			chr(9) + 'return ""',
-		'',
-		'class ScriptManagerLabelNVDAObject(NVDAObjects.NVDAObject if NVDAObjects else object):',
-			chr(9) + '@property',
-			chr(9) + 'def name(self):',
-			chr(9) + chr(9) + 'label = _scriptManager_getLabelForObject(self)',
-			chr(9) + chr(9) + 'if label:',
-			chr(9) + chr(9) + chr(9) + 'return label',
-			chr(9) + chr(9) + 'try:',
-			chr(9) + chr(9) + chr(9) + 'return super(ScriptManagerLabelNVDAObject, self).name',
-			chr(9) + chr(9) + 'except Exception:',
-			chr(9) + chr(9) + chr(9) + 'return ""',
-		'',
-		'class ScriptManagerLabelUIA(NVDAObjects.UIA.UIA if "NVDAObjects" in globals() and hasattr(NVDAObjects, "UIA") else ScriptManagerLabelNVDAObject):',
-			chr(9) + '@property',
-			chr(9) + 'def name(self):',
-			chr(9) + chr(9) + 'label = _scriptManager_getLabelForObject(self)',
-			chr(9) + chr(9) + 'if label:',
-			chr(9) + chr(9) + chr(9) + 'return label',
-			chr(9) + chr(9) + 'try:',
-			chr(9) + chr(9) + chr(9) + 'return super(ScriptManagerLabelUIA, self).name',
-			chr(9) + chr(9) + 'except Exception:',
-			chr(9) + chr(9) + chr(9) + 'return ""',
-		'',
-		'class ScriptManagerLabelIAccessible(NVDAObjects.IAccessible.IAccessible if "NVDAObjects" in globals() and hasattr(NVDAObjects, "IAccessible") else ScriptManagerLabelNVDAObject):',
-			chr(9) + '@property',
-			chr(9) + 'def name(self):',
-			chr(9) + chr(9) + 'label = _scriptManager_getLabelForObject(self)',
-			chr(9) + chr(9) + 'if label:',
-			chr(9) + chr(9) + chr(9) + 'return label',
-			chr(9) + chr(9) + 'try:',
-			chr(9) + chr(9) + chr(9) + 'return super(ScriptManagerLabelIAccessible, self).name',
-			chr(9) + chr(9) + 'except Exception:',
-			chr(9) + chr(9) + chr(9) + 'return ""',
-		'',
-		'def _scriptManager_getOverlayClassForObject(obj):',
-			chr(9) + 'try:',
-			chr(9) + chr(9) + 'if "NVDAObjects" in globals() and hasattr(NVDAObjects, "UIA") and isinstance(obj, NVDAObjects.UIA.UIA):',
-			chr(9) + chr(9) + chr(9) + 'return ScriptManagerLabelUIA',
-			chr(9) + 'except Exception:',
-			chr(9) + chr(9) + 'pass',
-			chr(9) + 'try:',
-			chr(9) + chr(9) + 'if "NVDAObjects" in globals() and hasattr(NVDAObjects, "IAccessible") and isinstance(obj, NVDAObjects.IAccessible.IAccessible):',
-			chr(9) + chr(9) + chr(9) + 'return ScriptManagerLabelIAccessible',
-			chr(9) + 'except Exception:',
-			chr(9) + chr(9) + 'pass',
-			chr(9) + 'if _scriptManager_getLabelForObject(obj):',
-			chr(9) + chr(9) + 'return ScriptManagerLabelNVDAObject',
-			chr(9) + 'return None',
-		'',
-		'try:',
-			chr(9) + 'AppModule',
-		'except NameError:',
-			chr(9) + 'class AppModule(appModuleHandler.AppModule):',
-			chr(9) + chr(9) + 'pass',
-		'',
-		'_scriptManager_original_chooseNVDAObjectOverlayClasses = getattr(AppModule, "chooseNVDAObjectOverlayClasses", None)',
-		'',
-		'def _scriptManager_chooseNVDAObjectOverlayClasses(self, obj, clsList):',
-			chr(9) + 'if _scriptManager_original_chooseNVDAObjectOverlayClasses:',
-			chr(9) + chr(9) + '_scriptManager_original_chooseNVDAObjectOverlayClasses(self, obj, clsList)',
-			chr(9) + 'overlayClass = _scriptManager_getOverlayClassForObject(obj)',
-			chr(9) + 'if overlayClass and overlayClass not in clsList:',
-			chr(9) + chr(9) + 'clsList.insert(0, overlayClass)',
-		'',
-		'AppModule.chooseNVDAObjectOverlayClasses = _scriptManager_chooseNVDAObjectOverlayClasses',
-		LABEL_SUPPORT_END,
-	])
 
 
 def check_script_for_syntax_errors(script_content):
@@ -797,27 +810,49 @@ def get_default_addon_manifest_data():
 	}
 
 
-def build_addon_from_scratchpad(manifest_data, output_path):
+def prepare_addon_build(manifest_data, output_path):
+	"""Prepare addon build in a persistent temporary directory.
+
+	Copies scratchpad content and writes manifest files, but does not create
+	the final .nvda-addon bundle yet.  The caller is responsible for cleaning
+	up *temp_dir* (e.g. via ``shutil.rmtree``) after calling
+	:func:`finalize_addon_build`.
+
+	Returns (addon_dir, temp_dir, prepared_manifest_data).
+	"""
 	manifest_data = _prepare_manifest_data(manifest_data)
 	output_path = os.path.abspath(output_path)
 	output_dir = os.path.dirname(output_path)
 	os.makedirs(output_dir, exist_ok=True)
 
-	with tempfile.TemporaryDirectory(prefix='scriptmanagerAddonBuild_') as temp_dir:
-		addon_dir = os.path.join(temp_dir, manifest_data['addon_name'])
-		os.makedirs(addon_dir, exist_ok=True)
-		_copy_scratchpad_to_addon(addon_dir)
-		_write_runtime_manifest(addon_dir, manifest_data)
-		_write_builder_metadata(addon_dir, manifest_data)
-		_ensure_documentation_file(addon_dir, manifest_data)
+	temp_dir = tempfile.mkdtemp(prefix='scriptmanagerAddonBuild_')
+	addon_dir = os.path.join(temp_dir, manifest_data['addon_name'])
+	os.makedirs(addon_dir, exist_ok=True)
+	_copy_scratchpad_to_addon(addon_dir)
+	_ensure_addon_builder_subfolders(addon_dir)
+	_write_runtime_manifest(addon_dir, manifest_data)
+	_write_builder_metadata(addon_dir, manifest_data)
+	_ensure_documentation_file(addon_dir, manifest_data)
+	return addon_dir, temp_dir, manifest_data
+
+
+def finalize_addon_build(addon_dir, temp_dir, prepared_manifest_data, output_path):
+	"""Create the .nvda-addon bundle from a previously prepared addon_dir.
+
+	Cleans up *temp_dir* regardless of success or failure.
+	Returns the path of the created bundle.
+	"""
+	output_path = os.path.abspath(output_path)
+	output_dir = os.path.dirname(output_path)
+	try:
 		bundle = addonHandler.createAddonBundleFromPath(addon_dir, destDir=output_dir)
 		bundle_path = getattr(bundle, '_path', None)
 		if not bundle_path:
 			bundle_path = os.path.join(
 				output_dir,
 				'{name}-{version}.{extension}'.format(
-					name=manifest_data['addon_name'],
-					version=manifest_data['addon_version'],
+					name=prepared_manifest_data['addon_name'],
+					version=prepared_manifest_data['addon_version'],
 					extension=addonHandler.BUNDLE_EXTENSION,
 				),
 			)
@@ -827,6 +862,13 @@ def build_addon_from_scratchpad(manifest_data, output_path):
 			shutil.move(bundle_path, output_path)
 			bundle_path = output_path
 		return bundle_path
+	finally:
+		shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def build_addon_from_scratchpad(manifest_data, output_path):
+	addon_dir, temp_dir, prepared_manifest = prepare_addon_build(manifest_data, output_path)
+	return finalize_addon_build(addon_dir, temp_dir, prepared_manifest, output_path)
 
 
 def install_addon_bundle_for_testing(bundle_path, parent_window):
@@ -866,7 +908,7 @@ def _scratchpad_contains_files(scratchpad_dir):
 
 
 def _copy_scratchpad_to_addon(addon_dir):
-	scratchpad_dir = config.getScratchpadDir(True)
+	scratchpad_dir = get_scratchpad_dir(ensure_exists=True, ensure_subdirs=True)
 	if not _scratchpad_contains_files(scratchpad_dir):
 		raise ValueError(_('The scratchpad directory does not contain any files to package.'))
 	for entry in os.listdir(scratchpad_dir):
@@ -952,6 +994,23 @@ def _ensure_documentation_file(addon_dir, manifest_data):
 	)
 	with open(target_path, 'w', encoding='utf-8') as doc_file:
 		doc_file.write(html_text)
+
+
+def _ensure_addon_builder_subfolders(addon_dir):
+	"""Create common locale/doc subfolders in prepared addon directory."""
+	ui_language = get_nvda_ui_language_code() or 'en'
+	doc_languages = ['en']
+	locale_languages = ['en']
+	if ui_language not in doc_languages:
+		doc_languages.append(ui_language)
+	if ui_language not in locale_languages:
+		locale_languages.append(ui_language)
+
+	for language_code in doc_languages:
+		os.makedirs(os.path.join(addon_dir, 'doc', language_code), exist_ok=True)
+
+	for language_code in locale_languages:
+		os.makedirs(os.path.join(addon_dir, 'locale', language_code, 'LC_MESSAGES'), exist_ok=True)
 
 
 def _quote_manifest_string(value):

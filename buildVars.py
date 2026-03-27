@@ -4,30 +4,29 @@
 # Change this file instead of sconstruct or manifest files, whenever possible.
 
 # Full getext (please don't change)
-_ = lambda x : x
+_ = lambda x: x
 
 # Add-on information variables
 addon_info = {
 	# for previously unpublished addons, please follow the community guidelines at:
 	# https://bitbucket.org/nvdaaddonteam/todo/src/37bd08d42c17e72ae303fee4a60821ea0c2f4c5a/guideLines.txt?at=master
 	# add-on Name, internal for nvda
-	"addon-name" : "scriptmanager",
+	"addon-name": "scriptmanager",
 	# Add-on summary, usually the user visible name of the addon.
 	# TRANSLATORS: Summary for this add-on to be shown on installation and add-on information.
-	"addon-summary" : _("script manager"),
+	"addon-summary": _("script manager"),
 	# Add-on description
 	# Translators: Long description to be shown for this add-on on add-on information from add-ons manager
-	"addon-description" : _("""This add-on uses an own-built editor to create an appmodule for the currently running aplication.
+	"addon-description": _("""This add-on uses an own-built editor to create an appmodule for the currently running aplication.
 """),
 	# version
-	"addon-version" : "1.0.2-dev",
+	"addon-version": "1.0-beta1",
 	# Author(s)
-	"addon-author" : "David Parduhn <xkill85@gmx.net>",
+	"addon-author": "David Parduhn <xkill85@gmx.net>",
 	# URL for the add-on documentation support
-	"addon-url" : None,
+	"addon-url": None,
 	"lastTestedNVDAVersion": "2025.3.3"
 }
-
 
 import os.path
 
