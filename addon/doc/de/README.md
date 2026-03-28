@@ -279,6 +279,30 @@ Das Vorschaufeld „Name des Zielobjekts" zeigt jederzeit den ermittelten Namen 
 6. Mit Ctrl+S speichern.
 7. Mit NVDA+Ctrl+F3 Plugins neu laden und Verhalten testen.
 
+## Checkliste: Datei/Neu und Speichern unter
+
+1. Datei > Neu > Leere Datei wählen und danach Datei > Speichern unter öffnen.
+2. Erwartung: Startordner ist das Scratchpad-Hauptverzeichnis.
+3. Datei > Neu > Appmodule wählen und danach Datei > Speichern unter öffnen.
+4. Erwartung: Startordner ist Scratchpad/appModules.
+5. Datei > Neu > Global Plugin wählen und danach Datei > Speichern unter öffnen.
+6. Erwartung: Startordner ist Scratchpad/globalPlugins.
+7. Datei > Neu > Braille Display Driver wählen und danach Datei > Speichern unter öffnen.
+8. Erwartung: Startordner ist Scratchpad/brailleDisplayDrivers.
+9. Datei > Neu > Speech Synthesizer Driver wählen und danach Datei > Speichern unter öffnen.
+10. Erwartung: Startordner ist Scratchpad/synthDrivers.
+11. Datei > Neu > Visual Enhancement Provider wählen und danach Datei > Speichern unter öffnen.
+12. Erwartung: Startordner ist Scratchpad/visionEnhancementProviders.
+13. Je Typ einmal speichern, dann die Datei neu laden und erneut Speichern unter öffnen.
+14. Erwartung: Als Startordner wird das Verzeichnis der geladenen Datei vorgeschlagen.
+
+### Mini-Checkliste: Scratchpad-Policy = Nein
+
+1. NVDA-Einstellungen > Script Manager öffnen und "Scratchpad bei Bedarf aktivieren" auf "Nein" setzen.
+2. Sicherstellen, dass Scratchpad in NVDA deaktiviert ist.
+3. Menü öffnen und prüfen: Scratchpad-pflichtige Einträge sind ausgegraut (z. B. Datei > Neu > Appmodule, Add-on bauen).
+4. Erwartung: Diese Aktionen bleiben gesperrt, bis Scratchpad wieder aktiviert oder die Policy geändert wird.
+
 ## Bekannte Hinweise
 
 - Der Editor ist auf schnelle NVDA-Scriptbearbeitung ausgelegt und kein vollwertiger IDE-Ersatz.

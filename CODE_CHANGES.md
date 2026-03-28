@@ -49,3 +49,27 @@ Dieses Dokument fasst die aktuell wichtigsten strukturellen Änderungen im Proje
 3. NVDA+Umschalt+0 testen (gleiches Verhalten wie Menüeintrag).
 4. NVDA+Umschalt+R testen (Labeling-Dialog/Regelerzeugung).
 5. Fehlerprüfung mit Ctrl+Umschalt+E sowie Alt+Pfeil hoch/runter testen.
+
+## Checkliste: Datei/Neu und Speichern unter
+
+1. Datei > Neu > Leere Datei wählen und danach Datei > Speichern unter öffnen.
+2. Prüfen: Startordner ist das Scratchpad-Hauptverzeichnis.
+3. Datei > Neu > Appmodule wählen und danach Datei > Speichern unter öffnen.
+4. Prüfen: Startordner ist Scratchpad/appModules.
+5. Datei > Neu > Global Plugin wählen und danach Datei > Speichern unter öffnen.
+6. Prüfen: Startordner ist Scratchpad/globalPlugins.
+7. Datei > Neu > Braille Display Driver wählen und danach Datei > Speichern unter öffnen.
+8. Prüfen: Startordner ist Scratchpad/brailleDisplayDrivers.
+9. Datei > Neu > Speech Synthesizer Driver wählen und danach Datei > Speichern unter öffnen.
+10. Prüfen: Startordner ist Scratchpad/synthDrivers.
+11. Datei > Neu > Visual Enhancement Provider wählen und danach Datei > Speichern unter öffnen.
+12. Prüfen: Startordner ist Scratchpad/visionEnhancementProviders.
+13. Jeweils einmal speichern, Datei erneut mit Datei > Öffnen laden und erneut Datei > Speichern unter öffnen.
+14. Prüfen: Es wird das Verzeichnis der geöffneten Datei als Startordner angeboten.
+
+### Mini-Checkliste: Scratchpad-Policy = Nein
+
+1. NVDA-Einstellungen > Script Manager öffnen und "Scratchpad bei Bedarf aktivieren" auf "Nein" setzen.
+2. Sicherstellen, dass Scratchpad in NVDA deaktiviert ist.
+3. Menü öffnen und prüfen: Scratchpad-pflichtige Einträge sind ausgegraut (z. B. Datei > Neu > Appmodule, Add-on bauen).
+4. Erwartung: Aktionen bleiben gesperrt, bis Scratchpad wieder aktiviert oder die Policy geändert wird.

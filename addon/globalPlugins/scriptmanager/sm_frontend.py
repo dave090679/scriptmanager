@@ -1064,38 +1064,16 @@ class _AddonFolderHintDialog(wx.Dialog):
 class scriptmanager_mainwindow(wx.Frame):
 
     SCRATCHPAD_REQUIRED_MENU_IDS = (104, 111, 112, 113, 114, 115)
+    _SCRATCHPAD_SUBDIR_BY_FILE_TYPE = {
+        "appModule": "appModules",
+        "globalPlugin": "globalPlugins",
+        "brailleDisplayDriver": "brailleDisplayDrivers",
+        "synthDriver": "synthDrivers",
+        "visionEnhancementProvider": "visionEnhancementProviders",
+    }
 
     def __init__(self, parent, id, title, scriptfile):
         wx.Frame.__init__(self, parent, id, title)
-
-        uiLanguage = sm_backend.get_nvda_ui_language_code()
-
-        def localizedShortcut(shortcut):
-            shortcut = str(shortcut or "")
-            shortcutTerms = {
-                "ctrl": "Strg" if uiLanguage == "de" else "Ctrl",
-                "shift": "Umschalt" if uiLanguage == "de" else "Shift",
-                "alt": "Alt",
-                "up": "Pfeil hoch" if uiLanguage == "de" else "Up",
-                "down": "Pfeil runter" if uiLanguage == "de" else "Down",
-            }
-
-            def normalizeShortcutPart(part):
-                normalized = str(part or "").strip()
-                lowered = normalized.lower()
-                if lowered in shortcutTerms:
-                    return shortcutTerms[lowered]
-                if re.match(r"^f\d+$", lowered):
-                    return lowered.upper()
-                if len(normalized) == 1 and normalized.isalpha():
-                    return normalized.upper()
-                return normalized
-
-            parts = [normalizeShortcutPart(part) for part in shortcut.split("+")]
-            return "+".join(parts)
-
-        def withShortcut(label, shortcut):
-            return label + "\t" + localizedShortcut(shortcut)
 
         menubar = wx.MenuBar()
         self.StatusBar()
@@ -1106,59 +1084,57 @@ class scriptmanager_mainwindow(wx.Frame):
         # view = wx.Menu()
         help = wx.Menu()
         filemenu.AppendSubMenu(filenew, _("&new"))
-        filemenu.Append(101, withShortcut(_("&Open"), "ctrl+o"), _("Open an appmodule"))
-        filemenu.Append(102, withShortcut(_("&Save"), "ctrl+s"), _("Save the appmodule"))
+        filemenu.Append(101, _("&Open\tctrl+o"), _("Open an appmodule"))
+        filemenu.Append(102, _("&Save\tctrl+s"), _("Save the appmodule"))
         filemenu.Append(
-            103, withShortcut(_("Save &as..."), "ctrl+shift+s"), _("Save the module as a new file")
-        )
+            103, _("Save &as...\tctrl+shift+s"), _("Save the module as a new file"))
         filemenu.Append(104, _("&build add-on..."), _("Create a distributable add-on from scratchpad contents"))
         filemenu.AppendSeparator()
         quit = wx.MenuItem(
-            filemenu, 105, withShortcut(_("&Quit"), "Alt+F4"), _("Quit the Application")
-        )
+            filemenu, 105, _("&Quit\tAlt+F4"), _("Quit the Application"))
         filemenu.AppendItem(quit)
-        filenew.Append(110, withShortcut(_("&empty file"), "ctrl+n"))
+        filenew.Append(110, _("&empty file\tctrl+n"))
         filenew.Append(111, _("&appmodule"))
         filenew.Append(112, _("&global plugin"))
         filenew.Append(113, _("&braille display driver"))
         filenew.Append(114, _("&speech synthesizer driver"))
         filenew.Append(115, _("&visual enhancement provider"))
-        edit.Append(200, withShortcut(_("&undo"), "ctrl+z"))
-        edit.Append(212, withShortcut(_("&redo"), "ctrl+y"))
-        edit.Append(201, withShortcut(_("cu&t"), "ctrl+x"))
-        edit.Append(202, withShortcut(_("&copy"), "ctrl+c"))
-        edit.Append(203, withShortcut(_("&paste"), "ctrl+v"))
-        edit.Append(204, withShortcut(_("select &all"), "ctrl+a"))
-        edit.Append(205, withShortcut(_("&delete"), "ctrl+y"))
-        edit.Append(206, withShortcut(_("&insert function..."), "ctrl+i"))
-        scripts.Append(223, withShortcut(_("&new script"), "ctrl+e"), _("Create a new script with template"))
-        edit.Append(207, withShortcut(_("&find..."), "ctrl+f"))
-        findnextitem = wx.MenuItem(edit, 208, withShortcut(_("find &next"), "f3"))
+        edit.Append(200, _("&undo\tctrl+z"))
+        edit.Append(212, _("&redo\tctrl+y"))
+        edit.Append(201, _("cu&t\tctrl+x"))
+        edit.Append(202, _("&copy\tctrl+c"))
+        edit.Append(203, _("&paste\tctrl+v"))
+        edit.Append(204, _("select &all\tctrl+a"))
+        edit.Append(205, _("&delete\tDel"))
+        edit.Append(206, _("&insert function...\tctrl+i"))
+        scripts.Append(223, _("&new script...\tctrl+e"), _("Create a new script with template"))
+        edit.Append(207, _("&find...\tctrl+f"))
+        findnextitem = wx.MenuItem(edit, 208, _("find &next\tf3"))
         findnextitem.Enable(True)
         edit.AppendItem(findnextitem)
-        findprevitem = wx.MenuItem(edit, 209, withShortcut(_("find previous"), "shift+f3"))
+        findprevitem = wx.MenuItem(edit, 209, _("find previous\tshift+f3"))
         findprevitem.Enable(True)
         edit.AppendItem(findprevitem)
-        edit.Append(210, withShortcut(_("r&eplace"), "ctrl+h"))
-        edit.Append(211, withShortcut(_("go to &line..."), "ctrl+g"))
+        edit.Append(210, _("r&eplace\tctrl+h"))
+        edit.Append(211, _("go to &line...\tctrl+g"))
         scripts.Append(
             224,
-            withShortcut(_("next script"), "f2"),
+            _("next script\tf2"),
             _("Go to next script definition"),
         )
         scripts.Append(
             225,
-            withShortcut(_("previous script"), "shift+f2"),
+            _("previous script\tshift+f2"),
             _("Go to previous script definition"),
         )
         edit.AppendSeparator()
-        scripts.Append(220, withShortcut(_("&next error"), "alt+Down"), _("Go to next script error"))
+        scripts.Append(220, _("&next error\talt+Down"), _("Go to next script error"))
         scripts.Append(
-            221, withShortcut(_("&previous error"), "alt+Up"), _("Go to previous script error")
+            221, _("&previous error\talt+Up"), _("Go to previous script error")
         )
         scripts.Append(
             222,
-            withShortcut(_("check script errors"), "ctrl+shift+e"),
+            _("check script errors\tctrl+shift+e"),
             _("Check and display all script errors"),
         )
         help.Append(901, _("&about..."))
@@ -1223,9 +1199,15 @@ class scriptmanager_mainwindow(wx.Frame):
         )
         self.text.Bind(wx.EVT_TEXT, self.OnTextChanged)
         self.last_name_saved = ""
+        self._current_file_type = "empty"
+        self.defaultdir = self._get_default_file_dialog_dir()
+        self.defaultfile = _("untitled") + ".py"
         if scriptfile != "":
             self.text.LoadFile(scriptfile)
             self.last_name_saved = scriptfile
+            self._current_file_type = self._detect_file_type_from_path(scriptfile)
+            self.defaultdir = os.path.dirname(scriptfile)
+            self.defaultfile = os.path.basename(scriptfile)
         self.modify = False
         self.text.SelectNone()
         self.text.SetFocus()
@@ -1334,7 +1316,48 @@ class scriptmanager_mainwindow(wx.Frame):
             return sm_backend.get_scratchpad_dir(ensure_exists=True, ensure_subdirs=True)
         return os.path.expanduser("~")
 
+    def _get_default_dir_for_file_type(self, file_type):
+        if not sm_backend.is_scratchpad_enabled():
+            return os.path.expanduser("~")
+        if file_type == "empty":
+            return sm_backend.get_scratchpad_dir(ensure_exists=True, ensure_subdirs=True)
+        subdir_name = self._SCRATCHPAD_SUBDIR_BY_FILE_TYPE.get(file_type)
+        if subdir_name:
+            return sm_backend.get_scratchpad_subdir(subdir_name)
+        return sm_backend.get_scratchpad_dir(ensure_exists=True, ensure_subdirs=True)
+
+    def _set_new_file_context(self, file_type, default_file=None):
+        self._current_file_type = file_type
+        self.defaultdir = self._get_default_dir_for_file_type(file_type)
+        if default_file:
+            self.defaultfile = default_file
+        elif not getattr(self, "defaultfile", ""):
+            self.defaultfile = _("untitled") + ".py"
+
+    def _detect_file_type_from_path(self, path):
+        path = str(path or "").strip()
+        if not path:
+            return getattr(self, "_current_file_type", "empty")
+        if not sm_backend.is_scratchpad_enabled():
+            return getattr(self, "_current_file_type", "empty")
+        scratchpad_dir = os.path.abspath(
+            sm_backend.get_scratchpad_dir(ensure_exists=True, ensure_subdirs=True)
+        )
+        normalized_path = os.path.abspath(path)
+        try:
+            in_scratchpad = os.path.commonpath([scratchpad_dir, normalized_path]) == scratchpad_dir
+        except ValueError:
+            in_scratchpad = False
+        if not in_scratchpad:
+            return getattr(self, "_current_file_type", "empty")
+
+        reverse_map = {value: key for key, value in self._SCRATCHPAD_SUBDIR_BY_FILE_TYPE.items()}
+        rel_path = os.path.relpath(normalized_path, scratchpad_dir)
+        top_level = rel_path.split(os.sep, 1)[0]
+        return reverse_map.get(top_level, "empty")
+
     def OnNewEmptyFile(self, event):
+        self._set_new_file_context("empty", _("untitled") + ".py")
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -1359,8 +1382,7 @@ class scriptmanager_mainwindow(wx.Frame):
         appmodule_name = self._choose_appmodule_name_for_new_file()
         if appmodule_name is None:
             return
-        self.defaultdir = sm_backend.get_scratchpad_subdir("appModules")
-        self.defaultfile = appmodule_name + ".py"
+        self._set_new_file_context("appModule", appmodule_name + ".py")
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -1423,7 +1445,7 @@ class scriptmanager_mainwindow(wx.Frame):
     def OnNewGlobalPlugin(self, event):
         if not self._ensure_scratchpad_for_action(_("Creating global plugins requires scratchpad.")):
             return
-        self.defaultdir = sm_backend.get_scratchpad_subdir("globalPlugins")
+        self._set_new_file_context("globalPlugin", _("untitled") + ".py")
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -1454,7 +1476,7 @@ class scriptmanager_mainwindow(wx.Frame):
     def OnNewBrailleDisplayDriver(self, event):
         if not self._ensure_scratchpad_for_action(_("Creating braille display drivers requires scratchpad.")):
             return
-        self.defaultdir = sm_backend.get_scratchpad_subdir("brailleDisplayDrivers")
+        self._set_new_file_context("brailleDisplayDriver", _("untitled") + ".py")
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -1489,7 +1511,7 @@ class scriptmanager_mainwindow(wx.Frame):
     def OnNewSynthDriver(self, event):
         if not self._ensure_scratchpad_for_action(_("Creating synth drivers requires scratchpad.")):
             return
-        self.defaultdir = sm_backend.get_scratchpad_subdir("synthDrivers")
+        self._set_new_file_context("synthDriver", _("untitled") + ".py")
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -1520,7 +1542,7 @@ class scriptmanager_mainwindow(wx.Frame):
     def OnNewVisionEnhancementProvider(self, event):
         if not self._ensure_scratchpad_for_action(_("Creating vision enhancement providers requires scratchpad.")):
             return
-        self.defaultdir = sm_backend.get_scratchpad_subdir("visionEnhancementProviders")
+        self._set_new_file_context("visionEnhancementProvider", _("untitled") + ".py")
         if self.text.IsModified and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -2068,6 +2090,9 @@ def {clean_name}(self, gesture):
                 self.text.Clear()
             self.text.LoadFile(path)
             self.last_name_saved = path
+            self._current_file_type = self._detect_file_type_from_path(path)
+            self.defaultdir = os.path.dirname(path)
+            self.defaultfile = os.path.basename(path)
             self.modify = False
             self.text.SetSelection(0, 0)
             # Automatische Fehlerprüfung beim Laden
@@ -2101,14 +2126,14 @@ def {clean_name}(self, gesture):
         wcd = (
             _("All files(*.*)") + "|*.*|" + _("appmodule source files (*.py)") + "|*.py"
         )
-        if hasattr(self, "defaultdir"):
-            default_dir = self.defaultdir
+        if self.last_name_saved:
+            default_dir = os.path.dirname(self.last_name_saved)
+            defaultfile = os.path.basename(self.last_name_saved)
         else:
-            default_dir = self._get_default_file_dialog_dir()
-        if hasattr(self, "defaultfile"):
-            defaultfile = self.defaultfile
-        else:
-            defaultfile = _("untitled") + ".py"
+            default_dir = self._get_default_dir_for_file_type(
+                getattr(self, "_current_file_type", "empty")
+            )
+            defaultfile = getattr(self, "defaultfile", _("untitled") + ".py")
         save_dlg = wx.FileDialog(
             self,
             message=_("Save file as..."),
@@ -2124,6 +2149,9 @@ def {clean_name}(self, gesture):
             try:
                 self.text.SaveFile(path)
                 self.last_name_saved = path
+                self._current_file_type = self._detect_file_type_from_path(path)
+                self.defaultdir = os.path.dirname(path)
+                self.defaultfile = os.path.basename(path)
                 self.statusbar.SetStatusText(os.path.basename(path) + " " + _("saved"), 0)
                 self.statusbar.SetStatusText("", 1)
                 self.modify = False

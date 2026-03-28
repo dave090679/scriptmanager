@@ -816,12 +816,9 @@ def _collect_auto_label_candidates(nav):
 def _collect_txt_children_label(obj):
 	parts = []
 	for child in getattr(obj, "children", []):
-		childName = (getattr(child, "name", "") or "").strip()
-		if not childName:
-			continue
-		roleText = str(getattr(child, "role", "") or "").lower()
-		classText = str(getattr(child, "windowClassName", "") or getattr(child, "className", "") or "").lower()
-		if "txt" in roleText or "text" in roleText or "txt" in classText:
+		childName = getattr(child, "name", "")
+		roleName = str(getattr(getattr(child, "role", None), "name", "") or "").upper()
+		if childName and roleName == "STATICTEXT":
 			parts.append(childName)
 	return "; ".join(parts).strip()
 
@@ -955,22 +952,7 @@ def _build_get_name_lines(method, label, className, labelsDictName):
 	if _method_code(method) == "A":
 		return [
 			"\tdef _get_name(self):",
-			"\t\tname = super({className}, self).name".format(className=className),
-			"\t\tclassName = getattr(self, 'windowClassName', '') or getattr(self, 'className', '')",
-			"\t\tif name and name != className:",
-			"\t\t\treturn name",
-			"\t\tparts = []",
-			"\t\tfor child in getattr(self, 'children', []):",
-			"\t\t\tchildName = (getattr(child, 'name', '') or '').strip()",
-			"\t\t\tif not childName:",
-			"\t\t\t\tcontinue",
-			"\t\t\troleText = str(getattr(child, 'role', '') or '').lower()",
-			"\t\t\tclassText = str(getattr(child, 'windowClassName', '') or getattr(child, 'className', '') or '').lower()",
-			"\t\t\tif 'txt' in roleText or 'text' in roleText or 'txt' in classText:",
-			"\t\t\t\tparts.append(childName)",
-			"\t\tif parts:",
-			"\t\t\treturn '; '.join(parts)",
-			"\t\treturn name or ''",
+			"\t\treturn '; '.join([x.name for x in self.children if x.role == controlTypes.ROLE_STATICTEXT and x.name])",
 		]
 
 	if _method_code(method) == "B":
