@@ -7,7 +7,9 @@ import appModuleHandler
 import api
 import ui
 import addonHandler
+import config
 import os
+import shutil
 import sys
 import gui
 import re
@@ -409,6 +411,56 @@ def _show_single_choice_index(message, caption, choices, parent=None):
 		dlg.Destroy()
 
 
+def _get_scratchpad_appmodule_path(appname, ensure_exists=True):
+	if not appname:
+		return None
+	scratchpad_dir = config.getScratchpadDir(bool(ensure_exists))
+	appmodules_dir = os.path.join(scratchpad_dir, "appModules")
+	if ensure_exists:
+		os.makedirs(appmodules_dir, exist_ok=True)
+	return os.path.join(appmodules_dir, appname + ".py")
+
+
+def _user_appmodule_exists(appname):
+	path = _get_scratchpad_appmodule_path(appname, ensure_exists=False)
+	if path and os.path.isfile(path):
+		return path
+	return None
+
+
+def _find_addon_appmodule_provider(appname):
+	for addon in addonHandler.getRunningAddons():
+		addon_module_path = os.path.join(addon.path, "appModules", appname + ".py")
+		if os.path.isfile(addon_module_path):
+			return addon
+	return None
+
+
+def _copy_addon_appmodule_to_scratchpad(appname, addon):
+	addonname = addon.manifest["name"]
+	addon_module_path = os.path.join(addon.path, "appModules", appname + ".py")
+	user_module_path = _get_scratchpad_appmodule_path(appname, ensure_exists=True)
+	shutil.copy2(addon_module_path, user_module_path)
+	ui.message(
+		_("copying appmodule for {appname} from addon {addonname} to user's config folder...").format(
+			addonname=addonname,
+			appname=appname,
+		)
+	)
+
+
+def _disable_addon_and_create_empty_appmodule(appname, addon):
+	addonname = addon.manifest["name"]
+	sm_backend.createnewmodule("appModule", appname, True)
+	addon.disable(onInstall=False)
+	ui.message(
+		_("addon {addonname} disabled. Created empty appModule for {appname}.").format(
+			addonname=addonname,
+			appname=appname,
+		)
+	)
+
+
 # Klasse von globalpluginhandler-globalplugin ableiten
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
@@ -509,9 +561,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			sm_backend.createnewmodule('appModule', appname, True)
 			load = True
 		else:
-			load = sm_backend.userappmoduleexists(appname)
+			load = _user_appmodule_exists(appname)
 			if not load:
-				addon = sm_backend.appmoduleprovidedbyaddon(appname)
+				addon = _find_addon_appmodule_provider(appname)
 				if addon:
 					addonname = addon.manifest['name']
 					dlg = wx.MessageDialog(
@@ -523,10 +575,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 					result = dlg.ShowModal()
 					dlg.Destroy()
 					if result == wx.ID_YES:
-						sm_backend.disable_addon_and_create_empty_appmodule(appname=appname, addon=addon)
+						_disable_addon_and_create_empty_appmodule(appname=appname, addon=addon)
 					else:
-						sm_backend.copyappmodulefromaddon(addon=addon, appname=appname)
-					load = True
+						_copy_addon_appmodule_to_scratchpad(addon=addon, appname=appname)
+					load = bool(_user_appmodule_exists(appname))
 		if load:
 			self.loadappmodule(appname)
 		else:
@@ -550,7 +602,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def loadappmodule(self, appname):
 		if appname and sm_backend.is_scratchpad_enabled():
-			userconfigfile = os.path.join(sm_backend.get_scratchpad_subdir('appModules'), appname + '.py')
+			userconfigfile = _get_scratchpad_appmodule_path(appname, ensure_exists=True)
 			frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), userconfigfile)
 		else:
 			frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), '')
@@ -714,19 +766,19 @@ def _ensure_user_appmodule(appname):
 			sm_backend.createnewmodule('appModule', appname, True)
 		except Exception:
 			return None
-		return sm_backend.userappmoduleexists(appname)
+		return _user_appmodule_exists(appname)
 
-	path = sm_backend.userappmoduleexists(appname)
+	path = _user_appmodule_exists(appname)
 	if path:
 		return path
 
-	addon = sm_backend.appmoduleprovidedbyaddon(appname)
+	addon = _find_addon_appmodule_provider(appname)
 	if addon:
 		try:
-			sm_backend.copyappmodulefromaddon(addon=addon, appname=appname)
+			_copy_addon_appmodule_to_scratchpad(addon=addon, appname=appname)
 		except Exception:
 			return None
-		return sm_backend.userappmoduleexists(appname)
+		return _user_appmodule_exists(appname)
 
 	return None
 

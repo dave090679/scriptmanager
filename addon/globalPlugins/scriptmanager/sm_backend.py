@@ -362,12 +362,6 @@ def get_scratchpad_subdir(subdir_name, ensure_exists=True):
 	return subdir_path
 
 
-def userappmoduleexists(appname):
-	userconfigfile = os.path.join(get_scratchpad_subdir('appModules'), appname + '.py')
-	if os.access(userconfigfile, os.F_OK): return userconfigfile
-	else: return None
-
-
 def get_running_application_names(include_focus=True):
 	"""Return sorted app names currently known by NVDA.
 
@@ -433,38 +427,6 @@ def get_running_application_names(include_focus=True):
 	return sorted(names, key=lambda value: value.lower())
 
 
-def appmoduleprovidedbyaddon(appname):
-	ret = None
-	for addon in addonHandler.getRunningAddons():
-		if os.access(addon.path + os.sep + 'appmodules' + os.sep + appname + '.py', os.F_OK): ret = addon
-	return ret
-
-
-def copyappmodulefromaddon(appname, addon):
-	addonname = addon.manifest['name']
-	addonfullpath = addon.path + os.sep + 'appmodules' + os.sep + appname + '.py'
-	userconfigfile = os.path.join(get_scratchpad_subdir('appModules'), appname + '.py')
-	fd1 = open(addonfullpath, 'r')
-	fd2 = open(userconfigfile, 'a')
-	ui.message(_("copying appmodule for {appname} from addon {addonname} to user's config folder...").format(addonname=addonname, appname=appname))
-	for line in fd1:
-		fd2.write(line)
-	fd2.close()
-	fd1.close()
-
-
-def disable_addon_and_create_empty_appmodule(appname, addon):
-	"""Disables the given addon and creates an empty appModule in the scratchpad."""
-	addonname = addon.manifest['name']
-	
-	# Create empty appModule file
-	createnewmodule('appModule', appname, True)
-	
-	# Disable the addon
-	addon.disable(onInstall=False)
-	ui.message(_("addon {addonname} disabled. Created empty appModule for {appname}.").format(addonname=addonname, appname=appname))
-
-
 def createnewmodule(moduletype, modulename, createfile):
 	l = moduletype[0].lower()
 	u = moduletype[0].upper()
@@ -499,72 +461,6 @@ def createnewmodule(moduletype, modulename, createfile):
 		ui.message(_('Creating a new {moduletype}  {modulename}').format(moduletype=moduletype, modulename=modulename))
 		fd1.write(text)
 		fd1.close()
-	else:
-		return text
-
-
-def get_object_base_class_info(focus):
-	"""Determines the NVDA driver base class of the given NVDAObject.
-
-	Returns a tuple (dotted_module, short_classname, import_statement), e.g.
-	('NVDAObjects.UIA', 'UIA', 'import NVDAObjects.UIA').
-	"""
-	try:
-		import NVDAObjects.UIA
-		if isinstance(focus, NVDAObjects.UIA.UIA):
-			return ('NVDAObjects.UIA', 'UIA', 'import NVDAObjects.UIA')
-	except Exception:
-		pass
-	try:
-		import NVDAObjects.IAccessible
-		if isinstance(focus, NVDAObjects.IAccessible.IAccessible):
-			return ('NVDAObjects.IAccessible', 'IAccessible', 'import NVDAObjects.IAccessible')
-	except Exception:
-		pass
-	return ('NVDAObjects', 'NVDAObject', 'import NVDAObjects')
-
-
-def createlabelmodule(appname, focus, createfile):
-	"""Creates an AppModule template with a labeling class for an unlabeled object.
-
-	The label class is named 'appname_rolename' and inherits from the real
-	NVDA driver base class of *focus* (e.g. NVDAObjects.UIA.UIA for UIA objects).
-	"""
-	role_name = focus.role.name.lower()
-	base_module, base_classname, import_line = get_object_base_class_info(focus)
-	base_full = base_module + '.' + base_classname
-	class_name = appname + '_' + role_name
-	module_template = [
-		'#appModules/' + appname + '.py',
-		'# ' + _('A part of NonVisual Desktop Access (NVDA)'),
-		'# ' + _('Copyright (C) 2006-{year} NVDA Contributors').format(year=datetime.date.today().year),
-		'# ' + _('This file is covered by the GNU General Public License.'),
-		'# ' + _('See the file COPYING for more details.'),
-		'import appModuleHandler',
-		'import controlTypes',
-		import_line,
-		'import api',
-		'from scriptHandler import script',
-		'import addonHandler',
-		'# ' + _('remove the comment (#) sign from the next line if (and when) the file belongs to an addon. This will enable localization (translation) features. in your file. See NVDA addon development guide for more info.'),
-		'#addonHandler.initTranslation()',
-		'',
-		'',
-		'class ' + class_name + '(' + base_full + '):',
-		chr(9) + '@property',
-		chr(9) + 'def name(self):',
-		chr(9) + chr(9) + 'return ""  # ' + _('Add the label here'),
-		'',
-		'',
-		'class AppModule(appModuleHandler.AppModule):',
-		chr(9) + 'pass',
-	]
-	text = os.linesep.join(module_template)
-	if createfile:
-		userconfigfile = os.path.join(get_scratchpad_subdir('appModules'), appname + '.py')
-		with open(userconfigfile, 'w') as fd:
-			ui.message(_('Creating a new appModule for labeling: {appname}').format(appname=appname))
-			fd.write(text)
 	else:
 		return text
 
@@ -624,17 +520,6 @@ def activate_error_logging(script_file_path=None):
 	try:
 		collector = get_script_error_collector()
 		collector.activate(script_file_path)
-	except Exception:
-		pass
-
-
-def deactivate_error_logging():
-	"""
-	Deactivates error logging.
-	"""
-	try:
-		collector = get_script_error_collector()
-		collector.deactivate()
 	except Exception:
 		pass
 
@@ -864,11 +749,6 @@ def finalize_addon_build(addon_dir, temp_dir, prepared_manifest_data, output_pat
 		return bundle_path
 	finally:
 		shutil.rmtree(temp_dir, ignore_errors=True)
-
-
-def build_addon_from_scratchpad(manifest_data, output_path):
-	addon_dir, temp_dir, prepared_manifest = prepare_addon_build(manifest_data, output_path)
-	return finalize_addon_build(addon_dir, temp_dir, prepared_manifest, output_path)
 
 
 def install_addon_bundle_for_testing(bundle_path, parent_window):
