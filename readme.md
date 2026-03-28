@@ -53,3 +53,11 @@ When policy is set to "no" and scratchpad is currently disabled, scratchpad-requ
 
 - Current development line in this repository: 1.0-dev
 - Last tested NVDA version (manifest): 2025.3.3
+
+## Release automation
+
+- A push to master always runs the build workflow.
+- On pushes to master, GitHub Actions reads the version from buildVars.py.
+- Tag and release creation only run when addon-version in buildVars.py changed compared with the previous commit on master.
+- If no Git tag with that version exists yet, the workflow creates the tag, builds the add-on, and publishes a GitHub Release with the generated .nvda-addon file.
+- If the version did not change, the workflow still builds but skips tag and release creation.

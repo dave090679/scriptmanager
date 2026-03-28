@@ -1,6 +1,6 @@
 # Build NVDA add-on
 # Python 3.11: Compatible with NVDA 2025.3.3 and later
-name: Build NVDA add-on
+name: Build and release NVDA add-on
 
 on:
   push:
@@ -9,6 +9,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -16,6 +19,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
@@ -31,5 +36,105 @@ jobs:
       - name: Lint with flake8
         run: flake8 --exit-zero addon
 
+      - name: Read add-on metadata
+        id: metadata
+        shell: pwsh
+        run: |
+          $version = python -c "import buildVars; print(buildVars.addon_info['addon-version'])"
+          $name = python -c "import buildVars; print(buildVars.addon_info['addon-name'])"
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "addon_name=$name" >> $env:GITHUB_OUTPUT
+          "asset_name=$name-$version.nvda-addon" >> $env:GITHUB_OUTPUT
+
+      - name: Check whether add-on version changed
+        id: version_check
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: pwsh
+        run: |
+          $before = "${{ github.event.before }}"
+          $after = "${{ github.sha }}"
+          $currentVersion = "${{ steps.metadata.outputs.version }}"
+
+          if ($before -match '^0+$') {
+            "changed=true" >> $env:GITHUB_OUTPUT
+            Write-Host "No previous commit available; treating version as changed."
+            exit 0
+          }
+
+          git diff --quiet $before $after -- buildVars.py
+          if ($LASTEXITCODE -eq 0) {
+            "changed=false" >> $env:GITHUB_OUTPUT
+            Write-Host "buildVars.py did not change in this push."
+            exit 0
+          }
+
+          $previousVersion = git show "$before:buildVars.py" | python -c "import ast, sys; module = ast.parse(sys.stdin.read()); info = next(node for node in module.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'addon_info' for target in node.targets)); value = ast.literal_eval(info.value); print(value['addon-version'])"
+          if ($previousVersion -eq $currentVersion) {
+            "changed=false" >> $env:GITHUB_OUTPUT
+            Write-Host "buildVars.py changed, but addon-version stayed at $currentVersion."
+          }
+          else {
+            "changed=true" >> $env:GITHUB_OUTPUT
+            Write-Host "addon-version changed from $previousVersion to $currentVersion."
+          }
+
+      - name: Check whether release tag already exists
+        id: tag_check
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.version_check.outputs.changed == 'true'
+        shell: pwsh
+        run: |
+          git fetch --force --tags
+          git show-ref --tags --verify --quiet "refs/tags/${{ steps.metadata.outputs.version }}"
+          if ($LASTEXITCODE -eq 0) {
+            "exists=true" >> $env:GITHUB_OUTPUT
+            Write-Host "Tag already exists for version ${{ steps.metadata.outputs.version }}"
+          }
+          else {
+            "exists=false" >> $env:GITHUB_OUTPUT
+            Write-Host "No tag found for version ${{ steps.metadata.outputs.version }}"
+          }
+
+      - name: Check whether GitHub release already exists
+        id: release_check
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.version_check.outputs.changed == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${{ steps.metadata.outputs.version }}" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            "exists=true" >> $env:GITHUB_OUTPUT
+            Write-Host "Release already exists for version ${{ steps.metadata.outputs.version }}"
+          }
+          else {
+            "exists=false" >> $env:GITHUB_OUTPUT
+            Write-Host "No release found for version ${{ steps.metadata.outputs.version }}"
+          }
+
       - name: Build add-on
         run: scons
+
+      - name: Create release tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.version_check.outputs.changed == 'true' && steps.tag_check.outputs.exists != 'true'
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.metadata.outputs.version }}"
+          git fetch --force --tags
+          git show-ref --tags --verify --quiet "refs/tags/$tag"
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Tag $tag was created while this workflow was running."
+            exit 0
+          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$tag"
+          git push origin "$tag"
+
+      - name: Create GitHub release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.version_check.outputs.changed == 'true' && steps.release_check.outputs.exists != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.metadata.outputs.version }}
+          name: ${{ steps.metadata.outputs.version }}
+          generate_release_notes: true
+          files: ${{ steps.metadata.outputs.asset_name }}
