@@ -1,7 +1,6 @@
-# Build and release NVDA add-on
+# Build NVDA add-on
 # Python 3.11: Compatible with NVDA 2025.3.3 and later
-# Future: Python 3.13 support for NVDA 2026.1
-name: Build and release NVDA add-on
+name: Build NVDA add-on
 
 on:
   push:
@@ -34,37 +33,3 @@ jobs:
 
       - name: Build add-on
         run: scons
-
-      - name: Extract version
-        id: version
-        run: python -c "import buildVars; print(f'VERSION={buildVars.addon_info[\"addon-version\"]}')" >> $GITHUB_OUTPUT
-        shell: powershell
-
-      - name: Check if release exists
-        id: check_release
-        run: |
-          $tag = "v${{ steps.version.outputs.VERSION }}"
-          try {
-            $response = Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers @{"Authorization"="token ${{ secrets.GITHUB_TOKEN }}"} -ErrorAction Stop
-            echo "exists=true" >> $GITHUB_OUTPUT
-          } catch {
-            if ($_.Exception.Response.StatusCode -eq 404) {
-              echo "exists=false" >> $GITHUB_OUTPUT
-            } else {
-              throw $_
-            }
-          }
-        shell: powershell
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-
-      - name: Create Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.check_release.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ steps.version.outputs.VERSION }}
-          name: Release v${{ steps.version.outputs.VERSION }}
-          files: '*.nvda-addon'
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.VERSION, 'dev') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
