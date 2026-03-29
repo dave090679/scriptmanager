@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: loadappmodule 1.1\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-28 11:11+0100\n"
-"PO-Revision-Date: 2026-03-28 11:21+0100\n"
+"POT-Creation-Date: 2026-03-29 13:40+0200\n"
+"PO-Revision-Date: 2026-03-29 13:47+0200\n"
 "Last-Translator: David Parduhn <xkill85@gmx.net>\n"
 "Language-Team: David Parduhn <xkill85@gmx.net>\n"
 "Language: de\n"
@@ -16,23 +16,23 @@ msgstr ""
 "X-Generator: Poedit 3.9\n"
 "X-Poedit-SearchPath-0: .\n"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:28
+#: addon/globalPlugins/scriptmanager/__init__.py:30
 msgid "A: Text child objects"
 msgstr "A: Text-Unterobjekte"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:29
+#: addon/globalPlugins/scriptmanager/__init__.py:31
 msgid "B: OneCore OCR"
 msgstr "B: OneCore OCR"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:30
+#: addon/globalPlugins/scriptmanager/__init__.py:32
 msgid "C: UIA Automation ID"
 msgstr "C: UIA-Automation-ID"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:40
+#: addon/globalPlugins/scriptmanager/__init__.py:42
 msgid "Automatic labeling methods"
 msgstr "Automatische Beschriftungsmethoden"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:53
+#: addon/globalPlugins/scriptmanager/__init__.py:55
 msgid ""
 "Choose which automatic labeling methods should be used for NVDA+Shift+R and "
 "arrange their priority."
@@ -40,19 +40,19 @@ msgstr ""
 "Wählen Sie aus, welche automatischen Beschriftungsmethoden für NVDA+Shift+R "
 "verwendet werden sollen, und ordnen Sie deren Priorität an."
 
-#: addon/globalPlugins/scriptmanager/__init__.py:66
+#: addon/globalPlugins/scriptmanager/__init__.py:68
 msgid "Method"
 msgstr "Methode"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:71
+#: addon/globalPlugins/scriptmanager/__init__.py:73
 msgid "Move &up"
 msgstr "nach &oben"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:72
+#: addon/globalPlugins/scriptmanager/__init__.py:74
 msgid "Move &down"
 msgstr "nach &unten"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:85
+#: addon/globalPlugins/scriptmanager/__init__.py:87
 msgid ""
 "Checked entries are applied automatically. Higher entries have higher "
 "priority."
@@ -60,131 +60,146 @@ msgstr ""
 "markierte Einträge werden automatisch angewendet. Höhere Einträge haben "
 "höhere Priorität."
 
-#: addon/globalPlugins/scriptmanager/__init__.py:172
-#: addon/globalPlugins/scriptmanager/__init__.py:487
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1309
+#: addon/globalPlugins/scriptmanager/__init__.py:174
+#: addon/globalPlugins/scriptmanager/__init__.py:539
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1389
 msgid "Script Manager"
 msgstr "NVDA Script-Manager"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:177
+#: addon/globalPlugins/scriptmanager/__init__.py:179
 msgid "ask"
 msgstr "nachfragen"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:178
+#: addon/globalPlugins/scriptmanager/__init__.py:180
 msgid "yes"
 msgstr "ja"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:179
+#: addon/globalPlugins/scriptmanager/__init__.py:181
 msgid "no"
 msgstr "nein"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:182
+#: addon/globalPlugins/scriptmanager/__init__.py:184
 msgid "scratchpad bei bedarf aktivieren"
 msgstr "Scratchpad bei Bedarf aktivieren"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:189
+#: addon/globalPlugins/scriptmanager/__init__.py:191
 msgid "Modul-Blacklist in 'Funktion einfügen'-Dialog einschließen"
 msgstr "Modul-Blacklist in 'Funktion einfügen'-Dialog einschließen"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:193
+#: addon/globalPlugins/scriptmanager/__init__.py:195
 msgid "Docstrings übersetzen"
 msgstr "Docstrings übersetzen"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:198
+#: addon/globalPlugins/scriptmanager/__init__.py:200
 msgid "Show add-on folder hint when opening the temp folder"
 msgstr "Hinweisdialog beim Öffnen des temporären Add-on-Ordners anzeigen"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:232
+#: addon/globalPlugins/scriptmanager/__init__.py:234
 msgid "← previous"
 msgstr "voriges"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:233
+#: addon/globalPlugins/scriptmanager/__init__.py:235
 msgid "→ &next"
 msgstr "&nächstes"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:234
+#: addon/globalPlugins/scriptmanager/__init__.py:236
 msgid "↑ &parent"
 msgstr "überge&ordnet"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:235
+#: addon/globalPlugins/scriptmanager/__init__.py:237
 msgid "↓ &firstChild"
 msgstr "erstes &untergeordnetes"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:236
+#: addon/globalPlugins/scriptmanager/__init__.py:238
 msgid "↓ &lastChild"
 msgstr "&letztes untergeordnetes"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:240
+#: addon/globalPlugins/scriptmanager/__init__.py:242
 msgid "Define object path (method E)"
 msgstr "Objektpfad definieren (Methode E)"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:251
+#: addon/globalPlugins/scriptmanager/__init__.py:253
 msgid "Add navigation step:"
 msgstr "Navigationsschritt hinzufügen:"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:263
+#: addon/globalPlugins/scriptmanager/__init__.py:265
 msgid "Current path:"
 msgstr "aktueller Pfad:"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:272
+#: addon/globalPlugins/scriptmanager/__init__.py:274
 msgid "Target object name:"
 msgstr "Name des Zielobjekts:"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:280
+#: addon/globalPlugins/scriptmanager/__init__.py:282
 msgid "&Remove last step"
 msgstr "Letzten Schritt &entfernen"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:283
+#: addon/globalPlugins/scriptmanager/__init__.py:285
 msgid "&Clear path"
 msgstr "Liste lee&ren"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:367
+#: addon/globalPlugins/scriptmanager/__init__.py:369
 msgid "(no steps defined yet)"
 msgstr "(noch keine Navigationsschritte definiert)"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:370
-#: addon/globalPlugins/scriptmanager/__init__.py:387
+#: addon/globalPlugins/scriptmanager/__init__.py:372
+#: addon/globalPlugins/scriptmanager/__init__.py:389
 msgid "(no name)"
 msgstr "(kein Name)"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:372
-#: addon/globalPlugins/scriptmanager/__init__.py:384
+#: addon/globalPlugins/scriptmanager/__init__.py:374
+#: addon/globalPlugins/scriptmanager/__init__.py:386
 msgid "(object not reachable)"
 msgstr "(Objekt nicht erreichbar)"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:432
+#: addon/globalPlugins/scriptmanager/__init__.py:445
+#, python-brace-format
+msgid ""
+"copying appmodule for {appname} from addon {addonname} to user's config "
+"folder..."
+msgstr ""
+"Das Anwendungsmodul für {appname} wird aus der Erweiterung {addonname} in "
+"den Konfigurationsordner des Benutzers kopiert..."
+
+#: addon/globalPlugins/scriptmanager/__init__.py:457
+#, python-brace-format
+msgid "addon {addonname} disabled. Created empty appModule for {appname}."
+msgstr ""
+"Addon {addonname} deaktiviert. Leeres appModule für {appname} erstellt."
+
+#: addon/globalPlugins/scriptmanager/__init__.py:484
 msgid "Script Manager labeling &methods..."
 msgstr "Beschriftungs&methoden..."
 
-#: addon/globalPlugins/scriptmanager/__init__.py:433
+#: addon/globalPlugins/scriptmanager/__init__.py:485
 msgid "Configure automatic labeling method priority"
 msgstr "Konfiguriert die Priorität für automatische Beschriftungsmethoden"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:442
+#: addon/globalPlugins/scriptmanager/__init__.py:494
 msgid "Script &Manager"
 msgstr "NVDA Script-Manager"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:443
+#: addon/globalPlugins/scriptmanager/__init__.py:495
 msgid "Open Script Manager with an empty file"
 msgstr "Öffnet den Scriptmanager mit einer leeren Datei"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:470
+#: addon/globalPlugins/scriptmanager/__init__.py:522
 msgid "Scratchpad processing remains disabled"
 msgstr "Die Scratchpad-Verarbeitung bleibt deaktiviert"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:479
+#: addon/globalPlugins/scriptmanager/__init__.py:531
 msgid "Automatic labeling methods saved"
 msgstr "automatische Beschriftungsmethoden wurden gespeichert"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:486
+#: addon/globalPlugins/scriptmanager/__init__.py:538
 msgid "open appModule in Script Manager now?"
 msgstr "appModule jetzt im Script-Manager oeffnen?"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:499
+#: addon/globalPlugins/scriptmanager/__init__.py:551
 msgid "Script Manager needs scratchpad to create appModules."
 msgstr "Der Script Manager benötigt das Scratchpad, um AppModule zu laden."
 
-#: addon/globalPlugins/scriptmanager/__init__.py:519
+#: addon/globalPlugins/scriptmanager/__init__.py:571
 #, python-brace-format
 msgid ""
 "An appModule for {appname} is provided by the addon '{addonname}'.\n"
@@ -197,30 +212,30 @@ msgstr ""
 "Wollen Sie dieses Add-on vorübergehend deaktivieren und ein leeres appModule "
 "im Scratchpad erstellen?"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:520
+#: addon/globalPlugins/scriptmanager/__init__.py:572
 msgid "appModule provided by addon"
 msgstr "appModule bereitgestellt vom Addon"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:538
+#: addon/globalPlugins/scriptmanager/__init__.py:590
 msgid "opens the nvda script manager window"
 msgstr "öffnet das Fenster des nvda-script-Managers"
 
 #. TRANSLATORS: Summary for this add-on to be shown on installation and add-on information.
-#: addon/globalPlugins/scriptmanager/__init__.py:539
-#: addon/globalPlugins/scriptmanager/__init__.py:564 buildVars.py:17
+#: addon/globalPlugins/scriptmanager/__init__.py:591
+#: addon/globalPlugins/scriptmanager/__init__.py:616 buildVars.py:17
 msgid "script manager"
 msgstr "NVDA Script-Manager"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:543
+#: addon/globalPlugins/scriptmanager/__init__.py:595
 msgid "Script Manager needs scratchpad to load appModules."
 msgstr "Der Script Manager benötigt das Scratchpad, um AppModule zu laden."
 
-#: addon/globalPlugins/scriptmanager/__init__.py:554
-#: addon/globalPlugins/scriptmanager/__init__.py:556
+#: addon/globalPlugins/scriptmanager/__init__.py:606
+#: addon/globalPlugins/scriptmanager/__init__.py:608
 msgid "NVDA Script Manager"
 msgstr "NVDA Script-Manager"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:563
+#: addon/globalPlugins/scriptmanager/__init__.py:615
 msgid ""
 "creates a new label for the focused object and saves a labeling rule in the "
 "appModule"
@@ -228,70 +243,70 @@ msgstr ""
 "Erstellt eine neue Bezeichnung fuer das fokussierte Objekt und speichert "
 "eine Label-Regel im appModule"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:588
+#: addon/globalPlugins/scriptmanager/__init__.py:640
 msgid "Labeling rules are stored in scratchpad appModules."
 msgstr "Beschriftungsregeln werden in AppModulen im Scratchpad gespeichert."
 
-#: addon/globalPlugins/scriptmanager/__init__.py:600
+#: addon/globalPlugins/scriptmanager/__init__.py:652
 msgid "no navigator object available"
 msgstr "kein Navigatorobjekt verfügbar."
 
-#: addon/globalPlugins/scriptmanager/__init__.py:616
+#: addon/globalPlugins/scriptmanager/__init__.py:668
 #, python-brace-format
 msgid "{method}: {preview}"
 msgstr "{method}: {preview}"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:620
-#: addon/globalPlugins/scriptmanager/__init__.py:646
+#: addon/globalPlugins/scriptmanager/__init__.py:672
+#: addon/globalPlugins/scriptmanager/__init__.py:698
 msgid "D: Manual text (static label)"
 msgstr "D: Manuell eingebener Text (statisch)"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:621
-#: addon/globalPlugins/scriptmanager/__init__.py:647
+#: addon/globalPlugins/scriptmanager/__init__.py:673
+#: addon/globalPlugins/scriptmanager/__init__.py:699
 msgid "E: Manual, object-path-based"
 msgstr "e: manuell (Objektpfadbasiert)"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:623
+#: addon/globalPlugins/scriptmanager/__init__.py:675
 msgid "Please choose a labeling method (including manual options):"
 msgstr "Wählen Sie eine Beschriftungsmethode (einschl. manueller Optionen):"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:624
+#: addon/globalPlugins/scriptmanager/__init__.py:676
 msgid "Element label"
 msgstr "Element beschriften"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:650
+#: addon/globalPlugins/scriptmanager/__init__.py:702
 msgid "No automatic label found. Please choose a manual method:"
 msgstr ""
 "kein automaisches Beschriften möglich; bitte wählen Sie eine manuelle "
 "Methode aus:"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:651
-#: addon/globalPlugins/scriptmanager/__init__.py:666
+#: addon/globalPlugins/scriptmanager/__init__.py:703
+#: addon/globalPlugins/scriptmanager/__init__.py:718
 msgid "Labeling"
 msgstr "Beschriftung"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:656
-#: addon/globalPlugins/scriptmanager/__init__.py:683
+#: addon/globalPlugins/scriptmanager/__init__.py:708
+#: addon/globalPlugins/scriptmanager/__init__.py:735
 msgid "no labeling method was successful"
 msgstr "Keine Label-Methode war erfolgreich"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:665
+#: addon/globalPlugins/scriptmanager/__init__.py:717
 msgid "Please enter a new label:"
 msgstr "Geben Sie die neue Beschriftung ein:"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:690
+#: addon/globalPlugins/scriptmanager/__init__.py:742
 msgid "no focus object available"
 msgstr "Kein Fokusobjekt verfügbar"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:695
+#: addon/globalPlugins/scriptmanager/__init__.py:747
 msgid "could not create or load appmodule"
 msgstr "Anwendungsmodul konnte nicht erstellt oder geladen werden."
 
-#: addon/globalPlugins/scriptmanager/__init__.py:699
+#: addon/globalPlugins/scriptmanager/__init__.py:751
 msgid "could not save labeling rule"
 msgstr "Die Label-Regel konnte nicht gespeichert werden"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:701
+#: addon/globalPlugins/scriptmanager/__init__.py:753
 msgid "labeling rule was saved into appModule"
 msgstr "Die Label-Regel wurde in das appModule gespeichert"
 
@@ -321,44 +336,24 @@ msgstr "&Ja"
 msgid "&No"
 msgstr "&Nein"
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:449
-#, python-brace-format
-msgid ""
-"copying appmodule for {appname} from addon {addonname} to user's config "
-"folder..."
-msgstr ""
-"Das Anwendungsmodul für {appname} wird aus der Erweiterung {addonname} in "
-"den Konfigurationsordner des Benutzers kopiert..."
-
-#: addon/globalPlugins/scriptmanager/sm_backend.py:465
-#, python-brace-format
-msgid "addon {addonname} disabled. Created empty appModule for {appname}."
-msgstr ""
-"Addon {addonname} deaktiviert. Leeres appModule für {appname} erstellt."
-
-#: addon/globalPlugins/scriptmanager/sm_backend.py:473
-#: addon/globalPlugins/scriptmanager/sm_backend.py:539
+#: addon/globalPlugins/scriptmanager/sm_backend.py:435
 msgid "A part of NonVisual Desktop Access (NVDA)"
 msgstr "Ein Teil von NonVisual Desktop Access (NVDA)"
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:474
-#: addon/globalPlugins/scriptmanager/sm_backend.py:540
+#: addon/globalPlugins/scriptmanager/sm_backend.py:436
 #, python-brace-format
 msgid "Copyright (C) 2006-{year} NVDA Contributors"
 msgstr "Copyright (C) 2006-{year} NVDA Mitwirkende"
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:475
-#: addon/globalPlugins/scriptmanager/sm_backend.py:541
+#: addon/globalPlugins/scriptmanager/sm_backend.py:437
 msgid "This file is covered by the GNU General Public License."
 msgstr "Diese Datei unterliegt der GNU General Public License."
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:476
-#: addon/globalPlugins/scriptmanager/sm_backend.py:542
+#: addon/globalPlugins/scriptmanager/sm_backend.py:438
 msgid "See the file COPYING for more details."
 msgstr "Weitere Informationen finden Sie in der Datei COPYING."
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:482
-#: addon/globalPlugins/scriptmanager/sm_backend.py:549
+#: addon/globalPlugins/scriptmanager/sm_backend.py:444
 msgid ""
 "remove the comment (#) sign from the next line if (and when) the file "
 "belongs to an addon. This will enable localization (translation) features. "
@@ -369,297 +364,288 @@ msgstr ""
 "Lokalisierungsfunktionen (Übersetzungsfunktionen) in Ihrer Datei aktiviert. "
 "Weitere Informationen finden Sie im Entwicklungshandbuch für NVDA-Addons."
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:486
+#: addon/globalPlugins/scriptmanager/sm_backend.py:448
 msgid "some snapshot variables similar to these in the python console"
 msgstr "Einige Snapshot-Variablen, die denen in der Python-Konsole ähneln"
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:499
+#: addon/globalPlugins/scriptmanager/sm_backend.py:461
 #, python-brace-format
 msgid "Creating a new {moduletype}  {modulename}"
 msgstr "{moduletype} {modulename} wird angelegt"
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:556
-msgid "Add the label here"
-msgstr "Fügen sie hier das Lebel hinzu"
-
-#: addon/globalPlugins/scriptmanager/sm_backend.py:566
-#, python-brace-format
-msgid "Creating a new appModule for labeling: {appname}"
-msgstr "Anwendungsmodul zur Beschriftung von {appname} wird angelegt"
-
-#: addon/globalPlugins/scriptmanager/sm_backend.py:731
+#: addon/globalPlugins/scriptmanager/sm_backend.py:616
 msgid "Unknown error"
 msgstr "Unbekannter Fehler"
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:734
+#: addon/globalPlugins/scriptmanager/sm_backend.py:619
 #, python-brace-format
 msgid "Line {line}: {error_type} - {message}"
 msgstr "Zeile {line}: {error_type} - {message}"
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:913
+#: addon/globalPlugins/scriptmanager/sm_backend.py:793
 msgid "The scratchpad directory does not contain any files to package."
 msgstr ""
 "Das Scratchpad-Verzeichnis enthält noch keine Dateien, die verpackt werden "
 "könnten."
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:985
+#: addon/globalPlugins/scriptmanager/sm_backend.py:865
 msgid "Author:"
 msgstr "Autor:"
 
-#: addon/globalPlugins/scriptmanager/sm_backend.py:989
+#: addon/globalPlugins/scriptmanager/sm_backend.py:869
 msgid "Changelog"
 msgstr "Änderungsprotokoll:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:75
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:76
 msgid "Expand the root node to load modules..."
 msgstr "Klappen Sie den Stammknoten aus, um Module zu laden."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:378
-msgid "Select a module or function to display help"
-msgstr "Wählen Sie ein Modul oder eine Funktion aus, um die Hilfe anzuzeigen."
-
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:395
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:409
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:423
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:442
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:448
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:364
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:463
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:489
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:511
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:517
 msgid "No help available"
 msgstr "Keine Hilfe verfügbar."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:411
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:425
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:444
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:446
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1976
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2027
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2042
+msgid "Select a module or function to display help"
+msgstr "Wählen Sie ein Modul oder eine Funktion aus, um die Hilfe anzuzeigen."
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:477
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:491
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:513
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:515
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2207
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2258
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2273
 msgid "Error"
 msgstr "Fehler"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:470
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:539
 msgid "Miscellaneous"
 msgstr "verschiedenes"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:471
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:540
 msgid "Browse mode"
 msgstr "Lesemodus"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:472
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:541
 msgid "Emulated system keyboard keys"
 msgstr "emulierte Systemtasten"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:473
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:542
 msgid "Text review"
 msgstr "Befehle zum Betrachten von Text"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:474
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:543
 msgid "Object navigation"
 msgstr "Objektnavigation"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:475
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:544
 msgid "System caret"
 msgstr "Systemcursor"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:476
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:545
 msgid "Mouse"
 msgstr "Maus"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:477
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:546
 msgid "Speech"
 msgstr "Sprachausgabe"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:478
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:547
 msgid "Configuration"
 msgstr "Konfiguration"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:479
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:548
 msgid "Configuration profiles"
 msgstr "Konfigurationsprofile"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:480
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:549
 msgid "Braille"
 msgstr "Braille"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:481
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:550
 msgid "Vision"
 msgstr "visuelles"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:482
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:551
 msgid "Tools"
 msgstr "Werkzeuge"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:483
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:552
 msgid "Touch screen"
 msgstr "Touchscreen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:484
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:553
 msgid "System focus"
 msgstr "Systemfokus"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:485
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:554
 msgid "System status"
 msgstr "Systemstatus"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:486
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:555
 msgid "Input"
 msgstr "Eingabe"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:487
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:556
 msgid "Document formatting"
 msgstr "Dokumentformatierung"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:514
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:583
 msgid "&Script name:"
 msgstr "&Scriptname:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:518
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:587
 msgid "&Description:"
 msgstr "&Beschreibung:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:524
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:593
 msgid "&Gestures:"
 msgstr "Tastenkombinationen:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:530
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:599
 msgid "&Add (Ins)"
 msgstr "&Hinzufuegen (EINFG)"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:531
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1142
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:600
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1213
 msgid "&Edit"
 msgstr "&bearbeiten"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:532
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:601
 msgid "&Delete (Del)"
 msgstr "&Löschen (ENTF)"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:541
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:610
 msgid "Press Add to capture a gesture."
 msgstr "Drücken Sie hinzufügen, um eine Tastenkombination zu erfassen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:551
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:620
 msgid "&Category:"
 msgstr "6Kategorie:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:560
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:629
 msgid "Advanced script options"
 msgstr "erweiterte Scriptoptionen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:564
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:633
 msgid "Script can &propagate to focus ancestors"
 msgstr "Skript darf an übergeordnete Objekte durchgereicht werden"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:567
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:636
 msgid "&Bypass input help"
 msgstr "Script kann Eingabehilfe umgehen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:570
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:639
 msgid "Allow in &sleep mode"
 msgstr "Ausführung im Schlafmodus erlauben"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:573
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:642
 msgid "Speak in &on-demand mode"
 msgstr "im Modus BEI BEDARF sprechen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:576
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:645
 msgid "&Resume say all mode:"
 msgstr "Fortsetzungsmodus für ALLES LESEN:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:620
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:689
 msgid "Please select a gesture to edit."
 msgstr "wählen Sie eine Tastenkombination zum Bearbeiten aus:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:621
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:808
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:948
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:690
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:877
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1017
 msgid "Missing Information"
 msgstr "fehlende Information"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:653
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:722
 msgid "Another gesture capture is already active."
 msgstr "eine andere Tastenerfassung ist bereits aktiv"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:654
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:723
 msgid "Capture in progress"
 msgstr "Erfassung läuft"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:661
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:730
 msgid "Press a key..."
 msgstr "Drücken Sie eine Taste..."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:690
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:759
 msgid "Capture canceled."
 msgstr "Erfassung abgebrochen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:692
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:761
 msgid "Ready."
 msgstr "bereit."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:808
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:877
 msgid "Please enter a script name."
 msgstr "Geben Sie einen Scriptnamen ein."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:849
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:918
 msgid "Add-on &name:"
 msgstr "Add-on-&Name:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:852
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:921
 msgid "Add-on &summary:"
 msgstr "&Zusammenfassung (Anzeigename im Store):"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:855
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:924
 msgid "Add-on &description:"
 msgstr "Addon &Beschreibung:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:862
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:931
 msgid "Add-on &version:"
 msgstr "Addon-&Version:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:865
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:934
 msgid "Add-on &author:"
 msgstr "Add-.on-&Autor:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:868
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:937
 msgid "Support &URL:"
 msgstr "Support-&Url:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:871
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:940
 msgid "Source &URL:"
 msgstr "Url des &Quellcodes:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:874
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:943
 msgid "&Documentation file:"
 msgstr "&Dokumentation:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:877
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:946
 msgid "&Minimum NVDA version:"
 msgstr "&minimale NVDA-Version:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:882
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:951
 msgid "&Last tested NVDA version:"
 msgstr "&letzte getestete NVDA-Version:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:887
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:956
 msgid "&Update channel:"
 msgstr "&Update-Kanal:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:894
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:963
 msgid "&Changelog:"
 msgstr "&Änderungsprotokoll:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:901
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:970
 msgid "&License:"
 msgstr "L&izenz:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:904
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:973
 msgid "License U&RL:"
 msgstr "Lizenz-U&rl:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:961
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1030
 msgid "Please enter an add-on name."
 msgstr "Geben Sie einen Addon-Namen ein."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:964
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1033
 msgid ""
 "The add-on name may only contain letters, digits and underscores, and it "
 "must not start with a digit."
@@ -667,35 +653,35 @@ msgstr ""
 "Der Addon-name darf nur Buchstaben, Ziffern und Unterstriche enthalten und "
 "darf nicht mit einer Ziffer beginnen."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:967
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1036
 msgid "Please enter an add-on summary."
 msgstr "Geben Sie einen Anzeigenamen für das Add-on ein."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:970
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1039
 msgid "Please enter an add-on version."
 msgstr "Geben Sie eine Addon-Version im Format x.y ein."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:973
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1042
 msgid "The add-on version contains invalid filename characters."
 msgstr "Die Versionsnummer enthält ungültige Zeichen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:976
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1045
 msgid "Please enter an add-on author."
 msgstr "Geben Sie den Autor an."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:986
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1055
 msgid "URLs should start with https://."
 msgstr "Urls sollten mit https:// beginnen."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:994
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1063
 msgid "The minimum NVDA version is invalid."
 msgstr "die minimale NVDA-Version ist ungültig."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1003
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1072
 msgid "The last tested NVDA version is invalid."
 msgstr "die letzte getestete Version von NVDA ist ungültig."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1006
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1075
 msgid ""
 "The minimum NVDA version must not be greater than the last tested NVDA "
 "version."
@@ -703,11 +689,11 @@ msgstr ""
 "Die minimale NVDA-Version darf nicht höher sein als die zuletzt getestete "
 "NVDA-Version."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1019
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1088
 msgid "Add-on folder opened"
 msgstr "Add-on-Ordner wurde geöffnet"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1027
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1096
 msgid ""
 "The add-on folder has been opened in Explorer.\n"
 "You can now add additional files (e.g. translations, documentation).\n"
@@ -721,342 +707,402 @@ msgstr ""
 "Klicken Sie auf OK, wenn Sie fertig sind, um die Add-on-Datei zu erstellen, "
 "oder auf Abbrechen, um den Vorgang abzubrechen."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1032
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1101
 msgid "Click OK when you are done adding files to the folder."
 msgstr ""
 "Klicken Sie auf OK, wenn Sie die Dateien im Ordner fertiggestellt haben."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1039
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1108
 msgid "Do not show this message again"
 msgstr "Diese Meldung nicht mehr anzeigen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1086
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1155
 msgid "&new"
 msgstr "&neu"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1087
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1156
 msgid "&Open\tctrl+o"
 msgstr "Ö&ffnen\tstrg+o"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1087
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1156
 msgid "Open an appmodule"
 msgstr "öffnet ein Anwendungsmodul"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1088
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1157
 msgid "&Save\tctrl+s"
 msgstr "&speichern\tstrg+s"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1088
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1157
 msgid "Save the appmodule"
 msgstr "speichert das Modul"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1090
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1159
 msgid "Save &as...\tctrl+shift+s"
 msgstr "Speichern &unter...\tstrg+Umschalt+S"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1090
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1159
 msgid "Save the module as a new file"
 msgstr "speichert das modul in einer neuen Datei"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1091
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1160
 msgid "&build add-on..."
 msgstr "Add-on &Erstellen..."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1091
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1160
 msgid "Create a distributable add-on from scratchpad contents"
 msgstr "Erstellt ein verteiltes Add-on aus den Inhalten des Scratchpads"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1094
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1163
 msgid "&Quit\tAlt+F4"
 msgstr "&beenden\tAlt+F4"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1094
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1163
 msgid "Quit the Application"
 msgstr "beendet die anwendung"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1096
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1165
 msgid "&empty file\tctrl+n"
 msgstr "&leere Datei\tstrg+n"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1097
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1166
 msgid "&appmodule"
 msgstr "&Anwendungsmodul"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1098
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1167
 msgid "&global plugin"
 msgstr "&Globales Plugin"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1099
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1168
 msgid "&braille display driver"
 msgstr "&BraillezeilenTreiber"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1100
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1169
 msgid "&speech synthesizer driver"
 msgstr "&SprachausgabenTreiber"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1101
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1170
 msgid "&visual enhancement provider"
 msgstr "&visuelle Verbesserung"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1102
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1171
 msgid "&undo\tctrl+z"
 msgstr "&rückgängig\tstrg+z"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1103
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1172
 msgid "&redo\tctrl+y"
 msgstr "&wiederholen\tstrg+y"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1104
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1173
 msgid "cu&t\tctrl+x"
 msgstr "&ausschneiden\tstrg+x"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1105
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1174
 msgid "&copy\tctrl+c"
 msgstr "&Kopieren\tStrg+C"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1106
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1175
 msgid "&paste\tctrl+v"
 msgstr "&einfügen\tstrg+v"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1107
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1176
 msgid "select &all\tctrl+a"
 msgstr "alles &markieren\tstrg+a"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1108
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1177
 msgid "&delete\tDel"
 msgstr "&löschen\tentf"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1109
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1178
 msgid "&insert function...\tctrl+i"
 msgstr "&Funktion einfügen...\tstrg+i"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1110
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1179
+msgid "insert &file...\tctrl+r"
+msgstr "&Datei einfügen...\tStrg+R"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1180
+msgid "save se&lection\tctrl+w"
+msgstr "Auswahl speichern\tStrg+W"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1181
 msgid "&new script...\tctrl+e"
 msgstr "&neues Script…\tstrg+e"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1110
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1181
 msgid "Create a new script with template"
 msgstr "Erstellt ein neues Script mit einer Vorlage"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1111
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1182
 msgid "&find...\tctrl+f"
 msgstr "&suchen...\tstrg+f"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1112
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1183
 msgid "find &next\tf3"
 msgstr "&Weitersuchen\tf3"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1115
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1186
 msgid "find previous\tshift+f3"
 msgstr "rückwärts suchen\tUmschalt+F3"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1118
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1189
 msgid "r&eplace\tctrl+h"
 msgstr "&ersetzen\tstrg+h"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1119
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1190
 msgid "go to &line...\tctrl+g"
 msgstr "gehe zu &Zeile...\tstrg+g"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1122
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1193
 msgid "next script\tf2"
 msgstr "nächstes Script\tf2"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1123
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1194
 msgid "Go to next script definition"
 msgstr "Springt zur nächsten Scriptdefinition"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1127
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1198
 msgid "previous script\tshift+f2"
 msgstr "voriges Script\tUmschalt+F2"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1128
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1199
 msgid "Go to previous script definition"
 msgstr "springt zur vorigen Scriptdefinition"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1131
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1202
 msgid "&next error\talt+Down"
 msgstr "&nächster Fehler\talt+Pfeil ab"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1131
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1202
 msgid "Go to next script error"
 msgstr "Springt zum nächsten Scriptfehler"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1133
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1204
 msgid "&previous error\talt+Up"
 msgstr "&vorigen Fehler\talt+Pfeil auf"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1133
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1204
 msgid "Go to previous script error"
 msgstr "springt zum vorigen Scriptfehler"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1137
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1208
 msgid "check script errors\tctrl+shift+e"
 msgstr "auf Fehler überprüfen...\tstrg+Umschalt+E"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1138
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1209
 msgid "Check and display all script errors"
 msgstr "Prüft das Script auf Fehler und zeigt eine Fehlerliste an."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1140
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1211
 msgid "&about..."
 msgstr "&Info..."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1141
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1212
 msgid "&File"
 msgstr "&Datei"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1143
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1214
 msgid "&Scripts"
 msgstr "&Scripts"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1144
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1215
 msgid "&Help"
 msgstr "&Hilfe"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1204
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1335
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1360
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1423
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1448
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1461
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1468
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1473
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1479
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1493
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1502
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1508
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1514
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1527
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1534
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1539
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1545
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1279
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1415
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1440
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1503
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1528
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1541
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1548
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1553
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1559
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1568
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1575
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2136
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1573
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1582
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1588
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1594
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1607
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1614
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1619
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1625
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1639
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1648
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1655
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2367
 msgid "untitled"
 msgstr "unbenannt"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1308
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1388
 msgid "Scratchpad processing is disabled. This action is not available."
 msgstr ""
 "Die Scratchpad-Verarbeitung ist deaktiviert. Diese Aktion ist nicht "
 "verfügbar."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1364
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1389
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1452
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1483
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1518
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1549
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1589
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2052
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1444
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1469
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1532
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1563
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1598
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1629
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1669
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2283
 msgid "Save changes?"
 msgstr "Änderungen speichern?"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1380
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1460
 msgid "Creating appModules requires scratchpad."
 msgstr "Zum Erstellen von AppModulen ist das Scratchpad erforderlich."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1426
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1506
 #, python-brace-format
 msgid "Running application: {appname}"
 msgstr "Laufende Anwendung: {appname}"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1431
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1511
 msgid "Choose the application for which an appModule should be created:"
 msgstr ""
 "Wählen Sie die Anwendung aus, für die ein appModule erstellt werden soll:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1432
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1512
 msgid "New appModule"
 msgstr "neues Anwendungsmodul"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1446
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1526
 msgid "Creating global plugins requires scratchpad."
 msgstr "Zum Erstellen globaler Plugins ist das Scratchpad erforderlich."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1477
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1557
 msgid "Creating braille display drivers requires scratchpad."
 msgstr ""
 "Zum Erstellen von Braillezeilen-Treibern ist das Scratchpad erforderlich."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1512
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1592
 msgid "Creating synth drivers requires scratchpad."
 msgstr ""
 "Zum Erstellen von Synthesizer-Treibern ist das Scratchpad erforderlich."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1543
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1623
 msgid "Creating vision enhancement providers requires scratchpad."
 msgstr ""
 "Zum Erstellen von visuellen Erweiterungen ist das Scratchpad erforderlich."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1602
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1682
 msgid "Create new script"
 msgstr "neues Script erstellen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1707
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1787
 msgid "Find"
 msgstr "Suchen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1712
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1792
 msgid "go to line number"
 msgstr "Gehe zu Zeilennummer"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1713
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1793
 msgid "line number:"
 msgstr "Zeilennummer:"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1714
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1794
 msgid "enter the line number to go to"
 msgstr "Geben Sie die Zeilennummer ein, zu der Sie springen möchten."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1738
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1818
 msgid "Find and replace"
 msgstr "Finden und ersetzen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1809
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1851
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1876
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1889
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1931
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1956
 msgid "text not found"
 msgstr "Text nicht gefunden"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1809
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1851
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1876
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1889
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1931
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1956
 msgid "find"
 msgstr "Finden"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1882
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2008
 msgid "insert function"
 msgstr "Funktion einfügen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1895
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2030
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2090
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2300
+msgid "All files (*.*)"
+msgstr "alle Dateien (*.*)"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2030
+msgid "Text files (*.txt)|*.txt"
+msgstr "Textdateien (*.txt)|*.txt"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2034
+msgid "Choose a file to insert"
+msgstr "Wählen Sie die einzufügende Datei"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2062
+msgid "Unknown read error"
+msgstr "Unbekannter Lesefehler"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2068
+#, python-brace-format
+msgid "Inserted file: {filename}"
+msgstr "Eingefügte Datei: {filename}"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2072
+msgid "Error inserting file"
+msgstr "Fehler beim Einfügen der Datei"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2084
+msgid "Please select text first."
+msgstr "Bitte markieren Sie zuerst Text im Editor."
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2085
+msgid "Save selection"
+msgstr "Auswahl speichern"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2090
+msgid "Text files (*.txt)"
+msgstr "Textdateien (*.txt)"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2094
+msgid "Save selected text as..."
+msgstr "markierten Text speichern unter..."
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2109
+#, python-brace-format
+msgid "Selection saved: {filename}"
+msgstr "Auswahl gespeichert: {filename}"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2113
+msgid "Error saving selection"
+msgstr "Fehler beim speichern der Auswahl"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2126
 msgid "Save changes before creating the add-on?"
 msgstr "Speichern Sie die Änderungen, bevor Sie das Add-on erstellen?"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1896
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1956
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1960
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1987
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2127
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2187
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2191
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2218
 msgid "Create add-on"
 msgstr "Add-on erstellen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1929
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2160
 msgid "Save add-on as..."
 msgstr "Add-on Speichern &unter..."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1932
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2163
 #, python-brace-format
 msgid "NVDA add-on files (*.{extension})"
 msgstr "NVDA-Add-on-Dateien (*.{extension})"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1948
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2179
 msgid "Building an add-on requires scratchpad."
 msgstr "Zum Erstellen eines Add-ons ist das Scratchpad erforderlich."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1955
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2186
 msgid ""
 "The currently open file is not inside the scratchpad directory. Only files "
 "from the scratchpad will be included in the add-on."
@@ -1064,7 +1110,7 @@ msgstr ""
 "Die aktuell geöffnete Datei befindet sich nicht im Scratchpad-Verzeichnis. "
 "Nur Dateien vom Scratchpad werden im Add-on enthalten."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1975
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2206
 #, python-brace-format
 msgid ""
 "The add-on could not be prepared.\n"
@@ -1074,7 +1120,7 @@ msgstr ""
 "{error}"
 
 # --- New strings for menu-state logic and addon-folder workflow ---
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1986
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2217
 msgid ""
 "The add-on folder has been prepared. Do you want to finalize the add-on now "
 "or open the folder to add additional files first?"
@@ -1083,19 +1129,19 @@ msgstr ""
 "fertigstellen oder den Ordner öffnen, um zuerst weitere Dateien (z. B. "
 "Übersetzungen, Dokumentation) hinzuzufügen?"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1991
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2222
 msgid "&Finalize"
 msgstr "&Fertigstellen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1992
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2223
 msgid "&Open folder"
 msgstr "&Ordner öffnen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:1993
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2224
 msgid "&Cancel"
 msgstr "Abbre&chen"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2026
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2257
 #, python-brace-format
 msgid ""
 "The add-on could not be created.\n"
@@ -1104,7 +1150,7 @@ msgstr ""
 "Das Add-on konnte nicht erstellt werden.\n"
 "{error}"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2033
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2264
 #, python-brace-format
 msgid ""
 "The add-on was created successfully at:\n"
@@ -1117,12 +1163,12 @@ msgstr ""
 "\n"
 "Möchten Sie es jetzt testen?"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2034
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2046
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2265
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2277
 msgid "Add-on created"
 msgstr "Add-on erstellt"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2041
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2272
 #, python-brace-format
 msgid ""
 "The add-on was created, but testing could not be started.\n"
@@ -1131,46 +1177,42 @@ msgstr ""
 "Das Add-on wurde erstellt, aber Tests konnten nicht gestartet werden.\n"
 "{error}"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2069
-msgid "All files (*.*)"
-msgstr "alle Dateien (*.*)"
-
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2071
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2127
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2302
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2358
 msgid "appmodule source files (*.py)"
 msgstr "Anwendungsmodule und andere Quelldateien (*.py)"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2078
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2309
 msgid "Choose a file"
 msgstr "Wählen Sie eine Datei"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2110
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2155
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2341
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2386
 msgid "saved"
 msgstr "gespeichert"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2116
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2160
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2347
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2391
 msgid "Error saving file"
 msgstr "Fehler beim speichern der Datei"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2127
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2358
 msgid "All files(*.*)"
 msgstr "alle Dateien (*.*)"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2139
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2370
 msgid "Save file as..."
 msgstr "Datei speichern unter..."
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2198
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2429
 msgid " modified"
 msgstr "geändert"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2242
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2473
 msgid "INS"
 msgstr "EINFG"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2258
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2489
 #, python-brace-format
 msgid ""
 "\tNVDA Script-manager\t\n"
@@ -1181,45 +1223,45 @@ msgstr ""
 " (c) 2011-{year} David Parduhn\n"
 " Teile Copyright (C) Jan Bodnar 2005-2006"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2260
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2491
 msgid "About nvda Script Manager"
 msgstr "Über den NVDA Script manager"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2270
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2501
 msgid "No script content to check"
 msgstr "Es ist kein Inhalt zum Überprüfen verfügbar"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2283
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2308
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2335
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2514
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2539
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2566
 msgid "no errors found"
 msgstr "Keine Fehler gefunden"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2289
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2520
 #, python-brace-format
 msgid "{count} error(s) found"
 msgstr "{count} Fehler gefunden"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2371
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2602
 msgid "no script definitions found"
 msgstr "Keine Skriptdefinitionen gefunden"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2401
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2632
 #, python-brace-format
 msgid "script definition line {line}"
 msgstr "Skriptdefinitionszeile {line}"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2423
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2654
 #, python-brace-format
 msgid "Error {current}/{total}: Line {line} - {msg}"
 msgstr "Fehler {current}/{total}: Zeile {line} - {msg}"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2429
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2660
 #, python-brace-format
 msgid "Line {line}: {msg}"
 msgstr "Zeile {line}: {msg}"
 
-#: addon/globalPlugins/scriptmanager/sm_frontend.py:2443
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2674
 msgid "Save before Exit?"
 msgstr "Änderungen vor dem Schließen speichern?"
 
@@ -1230,6 +1272,13 @@ msgid ""
 msgstr ""
 "Diese Erweiterung verwendet einen eigenen Editor, um ein Anwendungsmodul für "
 "die aktuelle anwendung zu erstellen oder zu bearbeiten.\n"
+
+#~ msgid "Add the label here"
+#~ msgstr "Fügen sie hier das Lebel hinzu"
+
+#, python-brace-format
+#~ msgid "Creating a new appModule for labeling: {appname}"
+#~ msgstr "Anwendungsmodul zur Beschriftung von {appname} wird angelegt"
 
 #~ msgid "&Open"
 #~ msgstr "ö&ffnen..."

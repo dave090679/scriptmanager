@@ -86,6 +86,8 @@ Bei ungespeicherten Änderungen wirst du vor Neu/Öffnen/Beenden gefragt, ob ges
 - Alles markieren (Ctrl+A)
 - Löschen
 - Funktion einfügen (Ctrl+I)
+- Datei einfügen... (Ctrl+R): Fügt den Inhalt einer ausgewählten Datei an der aktuellen Cursorposition ein.
+- Markierung speichern (Ctrl+W): Speichert den aktuell markierten Text über einen "Speichern unter"-Dialog in eine Datei.
 - Suchen (Ctrl+F)
 - Weitersuchen (F3)
 - Rückwärts suchen (Umschalt+F3)

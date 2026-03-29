@@ -1176,6 +1176,8 @@ class scriptmanager_mainwindow(wx.Frame):
         edit.Append(204, _("select &all\tctrl+a"))
         edit.Append(205, _("&delete\tDel"))
         edit.Append(206, _("&insert function...\tctrl+i"))
+        edit.Append(213, _("insert &file...\tctrl+r"))
+        edit.Append(214, _("save se&lection\tctrl+w"))
         scripts.Append(223, _("&new script...\tctrl+e"), _("Create a new script with template"))
         edit.Append(207, _("&find...\tctrl+f"))
         findnextitem = wx.MenuItem(edit, 208, _("find &next\tf3"))
@@ -1228,6 +1230,8 @@ class scriptmanager_mainwindow(wx.Frame):
                 [
                     (wx.ACCEL_CTRL, ord("S"), 102),
                     (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("S"), 103),
+                    (wx.ACCEL_CTRL, ord("R"), 213),
+                    (wx.ACCEL_CTRL, ord("W"), 214),
                 ]
             )
         )
@@ -1240,6 +1244,8 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnDelete, id=204)
         self.Bind(wx.EVT_MENU, self.OnSelectAll, id=205)
         self.Bind(wx.EVT_MENU, self.OnInsertFunction, id=206)
+        self.Bind(wx.EVT_MENU, self.OnInsertFile, id=213)
+        self.Bind(wx.EVT_MENU, self.OnSaveSelection, id=214)
         self.Bind(wx.EVT_MENU, self.OnNewScript, id=223)
         self.Bind(wx.EVT_MENU, self.OnFinditem, id=207)
         self.Bind(wx.EVT_MENU, self.OnFindnextitem, id=208)
@@ -1330,6 +1336,11 @@ class scriptmanager_mainwindow(wx.Frame):
         if item is not None:
             item.Enable(has_selection)
         item = menuBar.FindItemById(202)
+        if item is not None:
+            item.Enable(has_selection)
+
+        # save selection (214) – only if something is selected
+        item = menuBar.FindItemById(214)
         if item is not None:
             item.Enable(has_selection)
 
@@ -2014,6 +2025,98 @@ def {clean_name}(self, gesture):
                 self.text.WriteText(text_to_insert)
         finally:
             ifd.Destroy()
+
+    def OnInsertFile(self, event):
+        wildcard = _("All files (*.*)") + "|*.*|" + _("Text files (*.txt)|*.txt")
+        default_dir = self._get_default_file_dialog_dir()
+        file_dialog = wx.FileDialog(
+            self,
+            message=_("Choose a file to insert"),
+            defaultDir=default_dir,
+            defaultFile="",
+            wildcard=wildcard,
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        )
+        try:
+            if file_dialog.ShowModal() != wx.ID_OK:
+                return
+
+            path = file_dialog.GetPath()
+            errors = []
+            encodings = ["utf-8", "utf-8-sig", "mbcs", sys.getdefaultencoding()]
+            tried = set()
+            content = None
+
+            for encoding in encodings:
+                if not encoding or encoding in tried:
+                    continue
+                tried.add(encoding)
+                try:
+                    with open(path, "r", encoding=encoding) as source_file:
+                        content = source_file.read()
+                    break
+                except Exception as error:
+                    errors.append(str(error))
+
+            if content is None:
+                raise IOError("\n".join(errors) if errors else _("Unknown read error"))
+
+            insertion_point = self.text.GetInsertionPoint()
+            self.text.SetSelection(insertion_point, insertion_point)
+            self.text.WriteText(content)
+            self.statusbar.SetStatusText(
+                _("Inserted file: {filename}").format(filename=os.path.basename(path)),
+                0,
+            )
+        except Exception as error:
+            dlg = wx.MessageDialog(self, _("Error inserting file") + "\n" + str(error))
+            try:
+                dlg.ShowModal()
+            finally:
+                dlg.Destroy()
+        finally:
+            file_dialog.Destroy()
+
+    def OnSaveSelection(self, event):
+        frm, to = self.text.GetSelection()
+        if frm == to:
+            wx.MessageBox(
+                _("Please select text first."),
+                _("Save selection"),
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+
+        wildcard = _("Text files (*.txt)") + "|*.txt|" + _("All files (*.*)") + "|*.*"
+        default_dir = self._get_default_file_dialog_dir()
+        save_dialog = wx.FileDialog(
+            self,
+            message=_("Save selected text as..."),
+            defaultDir=default_dir,
+            defaultFile="selection.txt",
+            wildcard=wildcard,
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        )
+        try:
+            if save_dialog.ShowModal() != wx.ID_OK:
+                return
+
+            path = save_dialog.GetPath()
+            selected_text = self.text.GetStringSelection()
+            with open(path, "w", encoding="utf-8") as target_file:
+                target_file.write(selected_text)
+            self.statusbar.SetStatusText(
+                _("Selection saved: {filename}").format(filename=os.path.basename(path)),
+                0,
+            )
+        except Exception as error:
+            dlg = wx.MessageDialog(self, _("Error saving selection") + "\n" + str(error))
+            try:
+                dlg.ShowModal()
+            finally:
+                dlg.Destroy()
+        finally:
+            save_dialog.Destroy()
 
     def _save_if_needed_for_build(self, event):
         if not self.modify or not self.text.GetValue():
