@@ -25,6 +25,7 @@ class insertfunctionsdialog(wx.Dialog):
         super(insertfunctionsdialog, self).__init__(parent, id, title)
         self.tree_initialized = False
         self.dialog_closed = False
+        self.importstring = ""
         self.includeBlacklistedModules = bool(includeBlacklistedModules)
         self.translateDocstrings = bool(translateDocstrings)
         self._doc_translation_cache = {}
@@ -248,6 +249,7 @@ class insertfunctionsdialog(wx.Dialog):
         if selection == self.tree.GetRootItem():
             return
 
+        self.importstring = ""
         parent = self.tree.GetItemParent(selection)
         item_data = self.tree.GetItemData(selection)
         item_text = self.tree.GetItemText(selection)
@@ -261,6 +263,7 @@ class insertfunctionsdialog(wx.Dialog):
             if item_data == "class":
                 self.functionstring = f"from {module_name} import {item_text}"
             elif item_data == "function":
+                self.importstring = f"import {module_name}"
                 self.functionstring = self._format_function_call(module_name, item_text)
         # Method selected (child of a class)
         else:
@@ -268,6 +271,7 @@ class insertfunctionsdialog(wx.Dialog):
             module_name = self.tree.GetItemText(grandparent)
             class_name = self.tree.GetItemText(parent)
             if item_data == "method":
+                self.importstring = f"from {module_name} import {class_name}"
                 self.functionstring = self._format_method_call(
                     module_name, class_name, item_text
                 )
@@ -276,6 +280,7 @@ class insertfunctionsdialog(wx.Dialog):
 
     def onCancel(self, event):
         self.functionstring = ""
+        self.importstring = ""
         self.EndModal(wx.ID_CANCEL)
 
     def on_char_hook(self, event):
@@ -295,71 +300,134 @@ class insertfunctionsdialog(wx.Dialog):
         self.dialog_closed = True
         event.Skip()
 
+    def _annotation_to_text(self, annotation):
+        if annotation == inspect.Parameter.empty:
+            return ""
+        if isinstance(annotation, str):
+            text = annotation
+        elif hasattr(annotation, "__name__"):
+            text = annotation.__name__
+        else:
+            text = str(annotation)
+
+        text = text.replace("typing.", "")
+        text = re.sub(r"^<class '(.+)'>$", r"\1", text)
+        text = text.replace("NoneType", "None")
+
+        union_match = re.match(r"Union\[(.+)\]$", text)
+        if union_match:
+            parts = [p.strip() for p in union_match.group(1).split(",") if p.strip()]
+            if parts:
+                text = " | ".join(parts)
+
+        optional_match = re.match(r"Optional\[(.+)\]$", text)
+        if optional_match:
+            text = f"{optional_match.group(1).strip()} | None"
+
+        return text
+
+    def _build_signatures(self, target, display_name):
+        sig = inspect.signature(target)
+        required_params = []
+        all_params = []
+
+        for param_name, param in sig.parameters.items():
+            if param_name in ("self", "cls"):
+                continue
+
+            type_annotation = self._annotation_to_text(param.annotation)
+            name = param_name
+            if param.kind == inspect.Parameter.VAR_POSITIONAL:
+                name = f"*{name}"
+            elif param.kind == inspect.Parameter.VAR_KEYWORD:
+                name = f"**{name}"
+
+            parameter_text = f"{type_annotation} {name}".strip() if type_annotation else name
+
+            has_default = param.default != inspect.Parameter.empty
+            is_optional = has_default or param.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            )
+
+            if not is_optional:
+                required_params.append(parameter_text)
+                all_params.append(parameter_text)
+            else:
+                all_params.append(f"[{parameter_text}]")
+
+        required_call = f"{display_name}({', '.join(required_params)})"
+        syntax_line = f"Syntax: {display_name}({', '.join(all_params)})"
+        return required_call, syntax_line
+
+    def _build_help_with_syntax(self, doc_text, syntax_line):
+        help_text = doc_text.strip() if doc_text else _("No help available")
+        if not syntax_line:
+            return help_text
+        if re.search(r"^\s*syntax\s*:", help_text, re.IGNORECASE | re.MULTILINE):
+            return help_text
+        return f"{help_text}\n\n{syntax_line}" if help_text else syntax_line
+
     def _format_function_call(self, module_name, function_name):
-        """Erzeugt einen Funktionsaufruf mit Typ- und Parameternamen."""
+        """Erzeugt einen Funktionsaufruf mit nur Pflichtparametern."""
         try:
             mod = sys.modules.get(module_name)
             if not mod or not hasattr(mod, function_name):
-                return f"{function_name}()"
+                return f"{module_name}.{function_name}()"
 
             func = getattr(mod, function_name)
-            sig = inspect.signature(func)
-            params = []
-
-            for param_name, param in sig.parameters.items():
-                if param_name in ("self", "cls"):
-                    continue
-
-                type_annotation = ""
-                if param.annotation != inspect.Parameter.empty:
-                    if hasattr(param.annotation, "__name__"):
-                        type_annotation = param.annotation.__name__
-                    else:
-                        type_annotation = str(param.annotation)
-
-                if type_annotation:
-                    params.append(f"{type_annotation} {param_name}")
-                else:
-                    params.append(param_name)
-
-            return f"{function_name}({', '.join(params)})"
+            required_call, _ = self._build_signatures(
+                func, f"{module_name}.{function_name}"
+            )
+            return required_call
         except:
-            return f"{function_name}()"
+            return f"{module_name}.{function_name}()"
+
+    def _format_function_syntax(self, module_name, function_name):
+        try:
+            mod = sys.modules.get(module_name)
+            if not mod or not hasattr(mod, function_name):
+                return f"Syntax: {function_name}()"
+            func = getattr(mod, function_name)
+            _, syntax_line = self._build_signatures(func, function_name)
+            return syntax_line
+        except:
+            return f"Syntax: {function_name}()"
 
     def _format_method_call(self, module_name, class_name, method_name):
-        """Erzeugt einen Methodenaufruf mit Typ- und Parameternamen."""
+        """Erzeugt einen Methodenaufruf mit nur Pflichtparametern."""
         try:
             mod = sys.modules.get(module_name)
             if not mod or not hasattr(mod, class_name):
-                return f"{method_name}()"
+                return f"{class_name}.{method_name}()"
 
             cls = getattr(mod, class_name)
             if not hasattr(cls, method_name):
-                return f"{method_name}()"
+                return f"{class_name}.{method_name}()"
 
             method = getattr(cls, method_name)
-            sig = inspect.signature(method)
-            params = []
-
-            for param_name, param in sig.parameters.items():
-                if param_name in ("self", "cls"):
-                    continue
-
-                type_annotation = ""
-                if param.annotation != inspect.Parameter.empty:
-                    if hasattr(param.annotation, "__name__"):
-                        type_annotation = param.annotation.__name__
-                    else:
-                        type_annotation = str(param.annotation)
-
-                if type_annotation:
-                    params.append(f"{type_annotation} {param_name}")
-                else:
-                    params.append(param_name)
-
-            return f"{method_name}({', '.join(params)})"
+            required_call, _ = self._build_signatures(
+                method, f"{class_name}.{method_name}"
+            )
+            return required_call
         except:
-            return f"{method_name}()"
+            return f"{class_name}.{method_name}()"
+
+    def _format_method_syntax(self, module_name, class_name, method_name):
+        try:
+            mod = sys.modules.get(module_name)
+            if not mod or not hasattr(mod, class_name):
+                return f"Syntax: {method_name}()"
+
+            cls = getattr(mod, class_name)
+            if not hasattr(cls, method_name):
+                return f"Syntax: {method_name}()"
+
+            method = getattr(cls, method_name)
+            _, syntax_line = self._build_signatures(method, method_name)
+            return syntax_line
+        except:
+            return f"Syntax: {method_name}()"
 
     def on_selection_changed(self, event):
         # Schütze vor Aufrufen während der Initialisierung oder nach dem Schließen
@@ -403,10 +471,8 @@ class insertfunctionsdialog(wx.Dialog):
                     if mod and hasattr(mod, func_name):
                         func = getattr(mod, func_name)
                         doc = inspect.getdoc(func)
-                        if doc:
-                            self._set_help_text(doc)
-                        else:
-                            self.help_text.SetValue(_("No help available"))
+                        syntax_line = self._format_function_syntax(mod_name, func_name)
+                        self._set_help_text(self._build_help_with_syntax(doc, syntax_line))
                     else:
                         self.help_text.SetValue(_("Error"))
                 elif item_data == "class":
@@ -436,7 +502,10 @@ class insertfunctionsdialog(wx.Dialog):
                         if hasattr(cls, member_name):
                             member = getattr(cls, member_name)
                             doc = inspect.getdoc(member)
-                            if doc:
+                            if item_data == "method":
+                                syntax_line = self._format_method_syntax(mod_name, class_name, member_name)
+                                self._set_help_text(self._build_help_with_syntax(doc, syntax_line))
+                            elif doc:
                                 self._set_help_text(doc)
                             else:
                                 self.help_text.SetValue(_("No help available"))
@@ -1875,6 +1944,52 @@ def {clean_name}(self, gesture):
         else:
             gui.messageBox(message=_("text not found"), caption=_("find"))
 
+    def _is_import_line_present(self, import_line):
+        content = self.text.GetValue()
+        lines = content.splitlines()
+
+        if import_line.startswith("import "):
+            module_name = import_line[len("import "):].strip()
+            for line in lines:
+                stripped = line.strip()
+                if not stripped.startswith("import "):
+                    continue
+                imported = stripped[len("import "):]
+                for item in imported.split(","):
+                    plain_item = item.strip().split(" as ", 1)[0].strip()
+                    if plain_item == module_name:
+                        return True
+            return False
+
+        match = re.match(r"from\s+([A-Za-z0-9_\.]+)\s+import\s+([A-Za-z0-9_]+)$", import_line)
+        if not match:
+            return import_line in lines
+
+        module_name, member_name = match.groups()
+        prefix = f"from {module_name} import "
+        for line in lines:
+            stripped = line.strip()
+            if not stripped.startswith(prefix):
+                continue
+            imported = stripped[len(prefix):]
+            if "*" in imported:
+                return True
+            imported_names = [item.strip().split(" as ", 1)[0].strip() for item in imported.split(",")]
+            if member_name in imported_names:
+                return True
+        return False
+
+    def _ensure_import_line_at_top(self, import_line):
+        if not import_line:
+            return 0
+        if self._is_import_line_present(import_line):
+            return 0
+
+        current_text = self.text.GetValue()
+        import_prefix = import_line.rstrip() + "\n"
+        self.text.SetValue(import_prefix + current_text)
+        return len(import_prefix)
+
     def OnInsertFunction(self, event):
         ifd = insertfunctionsdialog(
             self,
@@ -1883,8 +1998,21 @@ def {clean_name}(self, gesture):
             includeBlacklistedModules=sm_backend.get_include_blacklisted_modules(),
             translateDocstrings=sm_backend.get_translate_docstrings_enabled(),
         )
-        if ifd.ShowModal() == wx.ID_OK:
-            self.text.WriteText(ifd.functionstring)
+        try:
+            if ifd.ShowModal() != wx.ID_OK:
+                return
+
+            text_to_insert = ifd.functionstring
+            import_line = ifd.importstring
+
+            if import_line and text_to_insert and text_to_insert != import_line:
+                insertion_point = self.text.GetInsertionPoint()
+                inserted_chars = self._ensure_import_line_at_top(import_line)
+                self.text.SetInsertionPoint(insertion_point + inserted_chars)
+                self.text.WriteText(text_to_insert)
+            elif text_to_insert:
+                self.text.WriteText(text_to_insert)
+        finally:
             ifd.Destroy()
 
     def _save_if_needed_for_build(self, event):
