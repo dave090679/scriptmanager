@@ -1140,9 +1140,18 @@ class scriptmanager_mainwindow(wx.Frame):
         "synthDriver": "synthDrivers",
         "visionEnhancementProvider": "visionEnhancementProviders",
     }
+    _TITLE_FILE_TYPE_LABELS = {
+        "empty": _("&empty file\tctrl+n"),
+        "appModule": _("&appmodule"),
+        "globalPlugin": _("&global plugin"),
+        "brailleDisplayDriver": _("&braille display driver"),
+        "synthDriver": _("&speech synthesizer driver"),
+        "visionEnhancementProvider": _("&visual enhancement provider"),
+    }
 
     def __init__(self, parent, id, title, scriptfile):
         wx.Frame.__init__(self, parent, id, title)
+        self._base_window_title = title or _("NVDA Script Manager")
 
         menubar = wx.MenuBar()
         self.StatusBar()
@@ -1284,6 +1293,7 @@ class scriptmanager_mainwindow(wx.Frame):
             self.defaultdir = os.path.dirname(scriptfile)
             self.defaultfile = os.path.basename(scriptfile)
         self.modify = False
+        self._update_window_title()
         self.text.SelectNone()
         self.text.SetFocus()
         # Error-Liste Initialisierung
@@ -1293,6 +1303,36 @@ class scriptmanager_mainwindow(wx.Frame):
         # Aktiviere Error Logging für das aktuelle Script
         sm_backend.activate_error_logging(scriptfile if scriptfile else None)
         self._update_scratchpad_required_menu_state()
+
+    def _has_unsaved_changes(self):
+        try:
+            return bool(self.text.IsModified())
+        except Exception:
+            return bool(getattr(self, "modify", False))
+
+    def _get_current_title_filename(self):
+        if self.last_name_saved:
+            return os.path.basename(self.last_name_saved)
+        default_file_name = os.path.basename(getattr(self, "defaultfile", "") or "")
+        if default_file_name:
+            return default_file_name
+        return _("untitled")
+
+    def _get_current_title_file_type_label(self):
+        raw_label = self._TITLE_FILE_TYPE_LABELS.get(
+            getattr(self, "_current_file_type", "empty"),
+            "",
+        )
+        return str(raw_label or "").split("\t", 1)[0].replace("&", "").strip()
+
+    def _update_window_title(self):
+        dirty_prefix = "* " if self._has_unsaved_changes() else ""
+        title_file_name = self._get_current_title_filename()
+        title_file_type = self._get_current_title_file_type_label()
+        if title_file_type:
+            self.SetTitle(f"{dirty_prefix}{title_file_type}: {title_file_name} - {self._base_window_title}")
+            return
+        self.SetTitle(f"{dirty_prefix}{title_file_name} - {self._base_window_title}")
 
     def _onWindowActivate(self, event):
         if event.GetActive():
@@ -1417,9 +1457,9 @@ class scriptmanager_mainwindow(wx.Frame):
     def _detect_file_type_from_path(self, path):
         path = str(path or "").strip()
         if not path:
-            return getattr(self, "_current_file_type", "empty")
+            return "empty"
         if not sm_backend.is_scratchpad_enabled():
-            return getattr(self, "_current_file_type", "empty")
+            return "empty"
         scratchpad_dir = os.path.abspath(
             sm_backend.get_scratchpad_dir(ensure_exists=True, ensure_subdirs=True)
         )
@@ -1429,7 +1469,7 @@ class scriptmanager_mainwindow(wx.Frame):
         except ValueError:
             in_scratchpad = False
         if not in_scratchpad:
-            return getattr(self, "_current_file_type", "empty")
+            return "empty"
 
         reverse_map = {value: key for key, value in self._SCRATCHPAD_SUBDIR_BY_FILE_TYPE.items()}
         rel_path = os.path.relpath(normalized_path, scratchpad_dir)
@@ -1659,6 +1699,7 @@ class scriptmanager_mainwindow(wx.Frame):
     def DoNewEmptyFile(self):
         self.last_name_saved = ""
         self.text.Clear()
+        self._update_window_title()
 
     def OnNewScript(self, event):
         """Event-Handler für das Erstellen eines neuen Scripts."""
@@ -2326,6 +2367,7 @@ def {clean_name}(self, gesture):
             self.defaultfile = os.path.basename(path)
             self.modify = False
             self.text.SetSelection(0, 0)
+            self._update_window_title()
             # Automatische Fehlerprüfung beim Laden
             wx.CallAfter(self._check_errors_on_load)
         open_dlg.Destroy()
@@ -2342,6 +2384,7 @@ def {clean_name}(self, gesture):
                 )
                 self.statusbar.SetStatusText("", 1)
                 self.modify = False
+                self._update_window_title()
                 return True
             except Exception as error:
                 dlg = wx.MessageDialog(self, _("Error saving file") + "\n" + str(error))
@@ -2386,6 +2429,7 @@ def {clean_name}(self, gesture):
                 self.statusbar.SetStatusText(os.path.basename(path) + " " + _("saved"), 0)
                 self.statusbar.SetStatusText("", 1)
                 self.modify = False
+                self._update_window_title()
                 return True
             except Exception as error:
                 dlg = wx.MessageDialog(self, _("Error saving file") + "\n" + str(error))
@@ -2428,6 +2472,7 @@ def {clean_name}(self, gesture):
                     self.searchresults.append((x, column))
         self.statusbar.SetStatusText(_(" modified"), 1)
         self.modify = True
+        self._update_window_title()
         event.Skip()
 
     def OnKeyDown(self, event):

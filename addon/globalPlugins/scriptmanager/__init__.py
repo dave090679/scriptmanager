@@ -18,6 +18,8 @@ import keyword
 import ast
 import json
 import tokenize
+from collections import Counter
+import textInfos
 from gui import guiHelper, settingsDialogs
 from gui.nvdaControls import AutoWidthColumnCheckListCtrl
 impPath = os.path.abspath(os.path.dirname(__file__))
@@ -476,6 +478,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._labelCallbackPending = False
 		self._pendingLabelNavObject = None
 		self._pendingLabelAppName = None
+		self._highlightColorCache = {}
 		self.preferencesMenu = gui.mainFrame.sysTrayIcon.preferencesMenu
 		self.toolsMenu = gui.mainFrame.sysTrayIcon.toolsMenu
 		self._sysTrayIcon = gui.mainFrame.sysTrayIcon
@@ -756,6 +759,181 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			self._labelRuleDialogActive = False
 			self._pendingLabelNavObject = None
 			self._pendingLabelAppName = None
+
+	@script(
+		description=_("detects and stores a unique highlight color pair for the current navigator object"),
+		category=_("script manager"),
+		gesture="kb:nvda+shift+h"
+	)
+	def script_setHighlightColor(self, gesture):
+		if not self._ensureScratchpadForAction(_("Highlight color settings are stored in scratchpad appModules.")):
+			return
+		nav = api.getNavigatorObject()
+		if not nav:
+			ui.message(_("no navigator object available"))
+			return
+		uniquePair, errorCode = _get_unique_highlight_color_pair_for_object(nav)
+		if not uniquePair:
+			if errorCode == "noColorLines":
+				ui.message(_("No lines with both foreground and background colors were found"))
+			elif errorCode == "ambiguousLineColors":
+				ui.message(_("At least one line has multiple or missing color combinations"))
+			elif errorCode == "notUnique":
+				ui.message(_("No unique highlight color line found"))
+			else:
+				ui.message(_("Could not analyze text colors for navigator object"))
+			return
+
+		appname = None
+		processId = getattr(nav, "processID", 0) if nav else 0
+		if processId:
+			appname = appModuleHandler.getAppNameFromProcessID(processId, False)
+		if not appname:
+			focusObj = api.getFocusObject()
+			processId = getattr(focusObj, "processID", 0) if focusObj else 0
+			if processId:
+				appname = appModuleHandler.getAppNameFromProcessID(processId, False)
+		if not appname:
+			ui.message(_("could not determine current application"))
+			return
+
+		modulePath = _ensure_user_appmodule(appname)
+		if not modulePath:
+			ui.message(_("could not create or load appmodule"))
+			return
+
+		foregroundColor, backgroundColor = uniquePair
+		self._highlightColorCache[appname] = {
+			"foreground": foregroundColor,
+			"background": backgroundColor,
+		}
+		if not _write_highlight_color_rule(modulePath, foregroundColor, backgroundColor):
+			ui.message(_("could not save highlight color settings"))
+			return
+		ui.message(
+			_("Highlight color saved for {appname}: foreground {foreground}, background {background}").format(
+				appname=appname,
+				foreground=foregroundColor,
+				background=backgroundColor,
+			)
+		)
+		wx.CallAfter(self._askOpenAppModule, appname)
+
+
+def _normalize_rgb_color_value(colorValue):
+	if colorValue is None:
+		return None
+	if isinstance(colorValue, str):
+		return None
+	if hasattr(colorValue, "red") and hasattr(colorValue, "green") and hasattr(colorValue, "blue"):
+		try:
+			return (
+				int(colorValue.red),
+				int(colorValue.green),
+				int(colorValue.blue),
+			)
+		except Exception:
+			return None
+	try:
+		if len(colorValue) >= 3:
+			return (
+				int(colorValue[0]),
+				int(colorValue[1]),
+				int(colorValue[2]),
+			)
+	except Exception:
+		return None
+	return None
+
+
+def _get_line_color_pairs_from_text_info(info):
+	try:
+		items = list(info.getTextWithFields({}))
+	except TypeError:
+		items = list(info.getTextWithFields())
+	except Exception:
+		return None
+
+	currentForeground = None
+	currentBackground = None
+	lineHasText = False
+	lineColorPairs = set()
+	perLinePairs = []
+
+	def _flush_line():
+		nonlocal lineHasText, lineColorPairs
+		if not lineHasText:
+			lineColorPairs = set()
+			return
+		if len(lineColorPairs) == 1:
+			perLinePairs.append(next(iter(lineColorPairs)))
+		else:
+			perLinePairs.append(None)
+		lineHasText = False
+		lineColorPairs = set()
+
+	for item in items:
+		if isinstance(item, textInfos.FieldCommand):
+			if item.command != "formatChange":
+				continue
+			fieldData = getattr(item, "field", None)
+			if not fieldData:
+				continue
+			foreground = _normalize_rgb_color_value(fieldData.get("color"))
+			background = _normalize_rgb_color_value(fieldData.get("background-color"))
+			if foreground is not None:
+				currentForeground = foreground
+			if background is not None:
+				currentBackground = background
+			continue
+
+		if not isinstance(item, str) or not item:
+			continue
+
+		for chunk in item.splitlines(True):
+			textPart = chunk.rstrip("\r\n")
+			if textPart:
+				lineHasText = True
+				if currentForeground is not None and currentBackground is not None:
+					lineColorPairs.add((currentForeground, currentBackground))
+			if chunk.endswith("\n") or chunk.endswith("\r"):
+				_flush_line()
+
+	_flush_line()
+	return perLinePairs
+
+
+def _get_unique_highlight_color_pair_for_object(navObj):
+	try:
+		info = navObj.makeTextInfo(textInfos.POSITION_ALL)
+	except Exception:
+		return None, "textInfoUnavailable"
+
+	linePairs = _get_line_color_pairs_from_text_info(info)
+	if linePairs is None:
+		return None, "textInfoUnavailable"
+
+	if not linePairs:
+		return None, "noColorLines"
+
+	if any(pair is None for pair in linePairs):
+		return None, "ambiguousLineColors"
+
+	counter = Counter(linePairs)
+	if len(counter) != 2:
+		return None, "notUnique"
+
+	uniquePairs = [pair for pair, count in counter.items() if count == 1]
+	if len(uniquePairs) != 1:
+		return None, "notUnique"
+
+	otherCounts = [count for pair, count in counter.items() if pair != uniquePairs[0]]
+	if len(otherCounts) != 1:
+		return None, "notUnique"
+	if otherCounts[0] != len(linePairs) - 1:
+		return None, "notUnique"
+
+	return uniquePairs[0], None
 
 
 def _ensure_user_appmodule(appname):
@@ -1167,6 +1345,86 @@ def _write_choose_overlay_rule(modulePath, navObj, label, method):
 		"\t\tif obj.role == {roleExpression}:".format(roleExpression=roleExpression),
 		"\t\t\tclsList.insert(0, {overlayClass})".format(overlayClass=overlayClassName),
 		"",
+		endMarker,
+		"",
+	]
+
+	content = content.rstrip() + "\n" + "\n".join(rule)
+
+	writeEncodings = []
+	if moduleEncoding:
+		writeEncodings.append(moduleEncoding)
+	for fallbackEncoding in ("utf-8", "utf-8-sig", "mbcs", "cp1252", "latin-1"):
+		if fallbackEncoding not in writeEncodings:
+			writeEncodings.append(fallbackEncoding)
+
+	for currentEncoding in writeEncodings:
+		try:
+			with open(modulePath, "w", encoding=currentEncoding) as f:
+				f.write(content)
+			return True
+		except Exception:
+			continue
+	return False
+
+
+def _write_highlight_color_rule(modulePath, foregroundColor, backgroundColor):
+	content = None
+	moduleEncoding = None
+
+	try:
+		with tokenize.open(modulePath) as f:
+			content = f.read()
+			moduleEncoding = getattr(f, "encoding", None)
+	except Exception:
+		for fallbackEncoding in ("utf-8", "utf-8-sig", "mbcs", "cp1252", "latin-1"):
+			try:
+				with open(modulePath, "r", encoding=fallbackEncoding) as f:
+					content = f.read()
+				moduleEncoding = fallbackEncoding
+				break
+			except Exception:
+				continue
+
+	if content is None:
+		return False
+
+	if "import appModuleHandler" not in content:
+		content = "import appModuleHandler\n" + content
+
+	if "class AppModule(" not in content:
+		content += "\n\nclass AppModule(appModuleHandler.AppModule):\n\tpass\n"
+
+	startMarker = "# ScriptManagerHighlightColorStart"
+	endMarker = "# ScriptManagerHighlightColorEnd"
+	pattern = r"\n?%s.*?%s\n?" % (re.escape(startMarker), re.escape(endMarker))
+	content = re.sub(pattern, "\n", content, flags=re.S)
+
+	rule = [
+		"",
+		startMarker,
+		"class AppModule(AppModule):",
+		"\tscriptManagerHighlightForegroundColor = {foreground!r}".format(foreground=foregroundColor),
+		"\tscriptManagerHighlightBackgroundColor = {background!r}".format(background=backgroundColor),
+		"\tdef scriptManagerMatchesHighlightColors(self, foregroundColor, backgroundColor):",
+		"\t\tdef _normalize(colorValue):",
+		"\t\t\tif colorValue is None:",
+		"\t\t\t\treturn None",
+		"\t\t\tif hasattr(colorValue, 'red') and hasattr(colorValue, 'green') and hasattr(colorValue, 'blue'):",
+		"\t\t\t\ttry:",
+		"\t\t\t\t\treturn (int(colorValue.red), int(colorValue.green), int(colorValue.blue))",
+		"\t\t\t\texcept Exception:",
+		"\t\t\t\t\treturn None",
+		"\t\t\tif isinstance(colorValue, (tuple, list)) and len(colorValue) >= 3:",
+		"\t\t\t\ttry:",
+		"\t\t\t\t\treturn (int(colorValue[0]), int(colorValue[1]), int(colorValue[2]))",
+		"\t\t\t\texcept Exception:",
+		"\t\t\t\t\treturn None",
+		"\t\t\treturn None",
+		"\t\treturn (",
+		"\t\t\t_normalize(foregroundColor) == _normalize(self.scriptManagerHighlightForegroundColor)",
+		"\t\t\tand _normalize(backgroundColor) == _normalize(self.scriptManagerHighlightBackgroundColor)",
+		"\t\t)",
 		endMarker,
 		"",
 	]

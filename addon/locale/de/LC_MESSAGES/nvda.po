@@ -310,6 +310,43 @@ msgstr "Die Label-Regel konnte nicht gespeichert werden"
 msgid "labeling rule was saved into appModule"
 msgstr "Die Label-Regel wurde in das appModule gespeichert"
 
+#: addon/globalPlugins/scriptmanager/__init__.py:764
+msgid "detects and stores a unique highlight color pair for the current navigator object"
+msgstr "Ermittelt eine eindeutige Hervorhebungs-Farbkombination und speichert sie für das aktuelle Navigatorobjekt"
+
+#: addon/globalPlugins/scriptmanager/__init__.py:769
+msgid "Highlight color settings are stored in scratchpad appModules."
+msgstr "Hervorhebungsfarben werden in AppModulen im Scratchpad gespeichert."
+
+#: addon/globalPlugins/scriptmanager/__init__.py:777
+msgid "No lines with both foreground and background colors were found"
+msgstr "Es wurden keine Zeilen mit Vorder- und Hintergrundfarbe gefunden"
+
+#: addon/globalPlugins/scriptmanager/__init__.py:779
+msgid "At least one line has multiple or missing color combinations"
+msgstr "Mindestens eine Zeile hat mehrere oder unvollständige Farbkombinationen"
+
+#: addon/globalPlugins/scriptmanager/__init__.py:781
+msgid "No unique highlight color line found"
+msgstr "Es wurde keine eindeutige Hervorhebungszeile gefunden"
+
+#: addon/globalPlugins/scriptmanager/__init__.py:783
+msgid "Could not analyze text colors for navigator object"
+msgstr "Die Textfarben des Navigatorobjekts konnten nicht analysiert werden"
+
+#: addon/globalPlugins/scriptmanager/__init__.py:795
+msgid "could not determine current application"
+msgstr "Die aktuelle Anwendung konnte nicht ermittelt werden"
+
+#: addon/globalPlugins/scriptmanager/__init__.py:807
+msgid "could not save highlight color settings"
+msgstr "Die Hervorhebungsfarben konnten nicht gespeichert werden"
+
+#: addon/globalPlugins/scriptmanager/__init__.py:810
+#, python-brace-format
+msgid "Highlight color saved for {appname}: foreground {foreground}, background {background}"
+msgstr "Hervorhebungsfarbe für {appname} gespeichert: Vordergrund {foreground}, Hintergrund {background}"
+
 #: addon/globalPlugins/scriptmanager/sm_backend.py:241
 msgid ""
 "Script Manager needs the Scratchpad to continue this action.\n"
