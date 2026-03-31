@@ -18,7 +18,6 @@ import keyword
 import ast
 import json
 import tokenize
-from collections import Counter
 import textInfos
 from gui import guiHelper, settingsDialogs
 from gui.nvdaControls import AutoWidthColumnCheckListCtrl
@@ -32,6 +31,7 @@ AUTO_LABEL_METHODS = (
 	("A", _("A: Text child objects")),
 	("B", _("B: OneCore OCR")),
 	("C", _("C: UIA Automation ID")),
+	("D", _("D: Hover tooltip")),
 )
 DEFAULT_AUTO_LABEL_METHOD_ORDER = [code for code, _label in AUTO_LABEL_METHODS]
 LABEL_METHOD_SETTINGS_FILENAME = "scriptmanagerLabelMethods.json"
@@ -69,6 +69,12 @@ class LabelMethodSettingsDialog(wx.Dialog):
 		)
 		self.methodsList.InsertColumn(0, _("Method"))
 		self.methodsList.Bind(wx.EVT_LIST_ITEM_SELECTED, self._onSelectionChanged)
+		itemCheckedEvent = getattr(wx, "EVT_LIST_ITEM_CHECKED", None)
+		if itemCheckedEvent is not None:
+			self.methodsList.Bind(itemCheckedEvent, self._onCheckStateChanged)
+		itemUncheckedEvent = getattr(wx, "EVT_LIST_ITEM_UNCHECKED", None)
+		if itemUncheckedEvent is not None:
+			self.methodsList.Bind(itemUncheckedEvent, self._onCheckStateChanged)
 		contentSizer.Add(self.methodsList, 1, wx.ALL | wx.EXPAND, 10)
 
 		buttonSizer = wx.BoxSizer(wx.VERTICAL)
@@ -120,18 +126,25 @@ class LabelMethodSettingsDialog(wx.Dialog):
 		self.methodsList.SetItemState(index, wx.LIST_STATE_SELECTED, wx.LIST_STATE_SELECTED)
 
 	def _set_checked(self, index, checked):
-		if hasattr(self.methodsList, "CheckItem"):
-			self.methodsList.CheckItem(index, checked)
-			return
 		if hasattr(self.methodsList, "Check"):
 			self.methodsList.Check(index, checked)
+			return
+		if hasattr(self.methodsList, "CheckItem"):
+			self.methodsList.CheckItem(index, checked)
 
 	def _is_checked(self, index):
-		if hasattr(self.methodsList, "IsItemChecked"):
-			return self.methodsList.IsItemChecked(index)
 		if hasattr(self.methodsList, "IsChecked"):
 			return self.methodsList.IsChecked(index)
+		if hasattr(self.methodsList, "IsItemChecked"):
+			return self.methodsList.IsItemChecked(index)
 		return False
+
+	def _capture_enabled_methods_from_list(self):
+		enabled = set()
+		for index, method_code in enumerate(self._method_order):
+			if self._is_checked(index):
+				enabled.add(method_code)
+		self._enabled_methods = enabled
 
 	def _update_move_buttons(self):
 		selection = self._get_selection()
@@ -143,10 +156,21 @@ class LabelMethodSettingsDialog(wx.Dialog):
 		self._update_move_buttons()
 		event.Skip()
 
+	def _onCheckStateChanged(self, event):
+		index = event.GetIndex()
+		if 0 <= index < len(self._method_order):
+			method_code = self._method_order[index]
+			if self._is_checked(index):
+				self._enabled_methods.add(method_code)
+			else:
+				self._enabled_methods.discard(method_code)
+		event.Skip()
+
 	def _move_selected(self, direction):
 		selection = self._get_selection()
 		if selection == wx.NOT_FOUND:
 			return
+		self._capture_enabled_methods_from_list()
 		target = selection + direction
 		if target < 0 or target >= len(self._method_order):
 			return
@@ -162,13 +186,10 @@ class LabelMethodSettingsDialog(wx.Dialog):
 		self._move_selected(1)
 
 	def getSettings(self):
-		enabled = []
-		for index, method_code in enumerate(self._method_order):
-			if self._is_checked(index):
-				enabled.append(method_code)
+		self._capture_enabled_methods_from_list()
 		return {
 			"order": list(self._method_order),
-			"enabled": enabled,
+			"enabled": [method_code for method_code in self._method_order if method_code in self._enabled_methods],
 		}
 
 
@@ -479,6 +500,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._pendingLabelNavObject = None
 		self._pendingLabelAppName = None
 		self._highlightColorCache = {}
+		self._graphicLabelingActive = False
 		self.preferencesMenu = gui.mainFrame.sysTrayIcon.preferencesMenu
 		self.toolsMenu = gui.mainFrame.sysTrayIcon.toolsMenu
 		self._sysTrayIcon = gui.mainFrame.sysTrayIcon
@@ -761,27 +783,27 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			self._pendingLabelAppName = None
 
 	@script(
-		description=_("detects and stores a unique highlight color pair for the current navigator object"),
+		description=_("detects and stores a unique highlight marker for the current navigator object"),
 		category=_("script manager"),
 		gesture="kb:nvda+shift+h"
 	)
 	def script_setHighlightColor(self, gesture):
-		if not self._ensureScratchpadForAction(_("Highlight color settings are stored in scratchpad appModules.")):
+		if not self._ensureScratchpadForAction(_("Highlight marker settings are stored in scratchpad appModules.")):
 			return
 		nav = api.getNavigatorObject()
 		if not nav:
 			ui.message(_("no navigator object available"))
 			return
-		uniquePair, errorCode = _get_unique_highlight_color_pair_for_object(nav)
-		if not uniquePair:
-			if errorCode == "noColorLines":
-				ui.message(_("No lines with both foreground and background colors were found"))
-			elif errorCode == "ambiguousLineColors":
-				ui.message(_("At least one line has multiple or missing color combinations"))
+		uniqueMarker, errorCode = _get_unique_highlight_marker_for_object(nav)
+		if not uniqueMarker:
+			if errorCode == "noFeatureLines":
+				ui.message(_("No text lines with usable formatting features were found"))
+			elif errorCode == "noFeatureTokens":
+				ui.message(_("No unique formatting features were found in the selected object"))
 			elif errorCode == "notUnique":
-				ui.message(_("No unique highlight color line found"))
+				ui.message(_("No unique highlight marker line found"))
 			else:
-				ui.message(_("Could not analyze text colors for navigator object"))
+				ui.message(_("Could not analyze text formatting for navigator object"))
 			return
 
 		appname = None
@@ -802,22 +824,86 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			ui.message(_("could not create or load appmodule"))
 			return
 
-		foregroundColor, backgroundColor = uniquePair
+		featureKey = uniqueMarker.get("featureKey")
+		featureValue = uniqueMarker.get("featureValue")
+		targetLine = uniqueMarker.get("lineText", "")
 		self._highlightColorCache[appname] = {
-			"foreground": foregroundColor,
-			"background": backgroundColor,
+			"featureKey": featureKey,
+			"featureValue": featureValue,
+			"lineText": targetLine,
 		}
-		if not _write_highlight_color_rule(modulePath, foregroundColor, backgroundColor):
-			ui.message(_("could not save highlight color settings"))
+		if not _write_highlight_marker_rule(modulePath, nav, uniqueMarker):
+			ui.message(_("could not save highlight marker settings"))
 			return
 		ui.message(
-			_("Highlight color saved for {appname}: foreground {foreground}, background {background}").format(
+			_("Highlight marker saved for {appname}: {feature} = {value}; current entry: {line}").format(
 				appname=appname,
-				foreground=foregroundColor,
-				background=backgroundColor,
+				feature=featureKey,
+				value=featureValue,
+				line=targetLine or _("unknown"),
 			)
 		)
 		wx.CallAfter(self._askOpenAppModule, appname)
+
+	@script(
+		description=_("Scans all graphics in the current foreground window, recognizes them via OneCore OCR and stores labels by control ID"),
+		category=_("script manager"),
+		gesture="kb:nvda+shift+g"
+	)
+	def script_autoLabelGraphicsInForegroundWindow(self, gesture):
+		if self._graphicLabelingActive:
+			ui.message(_("graphic labeling is already running"))
+			return
+		if not self._ensureScratchpadForAction(_("Graphic label rules are stored in scratchpad appModules.")):
+			return
+
+		foreground = api.getForegroundObject()
+		if not foreground:
+			ui.message(_("no foreground window available"))
+			return
+
+		processId = getattr(foreground, "processID", 0) or 0
+		if not processId:
+			focusObj = api.getFocusObject()
+			processId = getattr(focusObj, "processID", 0) if focusObj else 0
+		if not processId:
+			ui.message(_("could not determine current application"))
+			return
+
+		appname = appModuleHandler.getAppNameFromProcessID(processId, False)
+		if not appname:
+			ui.message(_("could not determine current application"))
+			return
+
+		modulePath = _ensure_user_appmodule(appname)
+		if not modulePath:
+			ui.message(_("could not create or load appmodule"))
+			return
+
+		self._graphicLabelingActive = True
+		try:
+			graphicLabelsByControlId = {}
+			for obj in _iter_subtree_objects(foreground):
+				if not _is_graphic_object(obj):
+					continue
+				ocrLabel = _get_onecore_ocr_label(obj)
+				if not ocrLabel:
+					continue
+				controlId = _get_control_id(obj)
+				windowHandle = getattr(obj, "windowHandle", 0) or 0
+				if not controlId or controlId == windowHandle:
+					continue
+				graphicLabelsByControlId[controlId] = ocrLabel
+
+			if not _write_graphic_label_overlay_rule(modulePath, graphicLabelsByControlId):
+				ui.message(_("could not save graphic labels"))
+				return
+
+			ui.message(
+				_("{count} graphics labeled").format(count=len(graphicLabelsByControlId))
+			)
+		finally:
+			self._graphicLabelingActive = False
 
 
 def _normalize_rgb_color_value(colorValue):
@@ -846,7 +932,60 @@ def _normalize_rgb_color_value(colorValue):
 	return None
 
 
-def _get_line_color_pairs_from_text_info(info):
+def _normalize_highlight_feature_value(featureName, featureValue):
+	if featureValue is None:
+		return None
+	if featureName in ("color", "background-color"):
+		return _normalize_rgb_color_value(featureValue)
+	if isinstance(featureValue, bool):
+		return bool(featureValue)
+	if isinstance(featureValue, (int, float)):
+		return featureValue
+	if isinstance(featureValue, str):
+		normalized = featureValue.strip()
+		return normalized if normalized else None
+	if isinstance(featureValue, (tuple, list)):
+		normalizedItems = []
+		for item in featureValue:
+			normalizedItem = _normalize_highlight_feature_value(featureName, item)
+			if normalizedItem is None:
+				continue
+			normalizedItems.append(normalizedItem)
+		if not normalizedItems:
+			return None
+		return tuple(normalizedItems)
+	return None
+
+
+def _extract_highlight_features_from_field(fieldData):
+	featureKeys = (
+		"color",
+		"background-color",
+		"bold",
+		"italic",
+		"underline",
+		"strikethrough",
+		"invalid-spelling",
+		"font-name",
+		"font-size",
+		"text-position",
+	)
+	features = {}
+	for key in featureKeys:
+		if key not in fieldData:
+			continue
+		normalized = _normalize_highlight_feature_value(key, fieldData.get(key))
+		if normalized is None:
+			continue
+		features[key] = normalized
+	foreground = features.get("color")
+	background = features.get("background-color")
+	if foreground is not None and background is not None:
+		features["color-pair"] = (foreground, background)
+	return features
+
+
+def _get_line_feature_data_from_text_info(info):
 	try:
 		items = list(info.getTextWithFields({}))
 	except TypeError:
@@ -854,23 +993,27 @@ def _get_line_color_pairs_from_text_info(info):
 	except Exception:
 		return None
 
-	currentForeground = None
-	currentBackground = None
+	currentFeatures = {}
 	lineHasText = False
-	lineColorPairs = set()
-	perLinePairs = []
+	lineFeatures = set()
+	lineTextParts = []
+	perLineFeatureData = []
 
 	def _flush_line():
-		nonlocal lineHasText, lineColorPairs
+		nonlocal lineHasText, lineFeatures, lineTextParts
 		if not lineHasText:
-			lineColorPairs = set()
+			lineFeatures = set()
+			lineTextParts = []
 			return
-		if len(lineColorPairs) == 1:
-			perLinePairs.append(next(iter(lineColorPairs)))
-		else:
-			perLinePairs.append(None)
+		lineText = "".join(lineTextParts).strip()
+		if lineText:
+			perLineFeatureData.append({
+				"text": lineText,
+				"features": set(lineFeatures),
+			})
 		lineHasText = False
-		lineColorPairs = set()
+		lineFeatures = set()
+		lineTextParts = []
 
 	for item in items:
 		if isinstance(item, textInfos.FieldCommand):
@@ -879,12 +1022,8 @@ def _get_line_color_pairs_from_text_info(info):
 			fieldData = getattr(item, "field", None)
 			if not fieldData:
 				continue
-			foreground = _normalize_rgb_color_value(fieldData.get("color"))
-			background = _normalize_rgb_color_value(fieldData.get("background-color"))
-			if foreground is not None:
-				currentForeground = foreground
-			if background is not None:
-				currentBackground = background
+			for featureKey, featureValue in _extract_highlight_features_from_field(fieldData).items():
+				currentFeatures[featureKey] = featureValue
 			continue
 
 		if not isinstance(item, str) or not item:
@@ -894,46 +1033,75 @@ def _get_line_color_pairs_from_text_info(info):
 			textPart = chunk.rstrip("\r\n")
 			if textPart:
 				lineHasText = True
-				if currentForeground is not None and currentBackground is not None:
-					lineColorPairs.add((currentForeground, currentBackground))
+				lineTextParts.append(textPart)
+				for featureKey, featureValue in currentFeatures.items():
+					lineFeatures.add((featureKey, featureValue))
 			if chunk.endswith("\n") or chunk.endswith("\r"):
 				_flush_line()
 
 	_flush_line()
-	return perLinePairs
+	return perLineFeatureData
 
 
-def _get_unique_highlight_color_pair_for_object(navObj):
+def _get_unique_highlight_marker_for_object(navObj):
 	try:
 		info = navObj.makeTextInfo(textInfos.POSITION_ALL)
 	except Exception:
 		return None, "textInfoUnavailable"
 
-	linePairs = _get_line_color_pairs_from_text_info(info)
-	if linePairs is None:
+	lineFeatureData = _get_line_feature_data_from_text_info(info)
+	if lineFeatureData is None:
 		return None, "textInfoUnavailable"
 
-	if not linePairs:
-		return None, "noColorLines"
+	if not lineFeatureData:
+		return None, "noFeatureLines"
 
-	if any(pair is None for pair in linePairs):
-		return None, "ambiguousLineColors"
+	featureCounts = {}
+	featureLastLineIndex = {}
+	for lineIndex, lineData in enumerate(lineFeatureData):
+		features = lineData.get("features", set())
+		for token in features:
+			featureCounts[token] = featureCounts.get(token, 0) + 1
+			featureLastLineIndex[token] = lineIndex
 
-	counter = Counter(linePairs)
-	if len(counter) != 2:
+	if not featureCounts:
+		return None, "noFeatureTokens"
+
+	uniqueTokens = [token for token, count in featureCounts.items() if count == 1]
+	if not uniqueTokens:
 		return None, "notUnique"
 
-	uniquePairs = [pair for pair, count in counter.items() if count == 1]
-	if len(uniquePairs) != 1:
-		return None, "notUnique"
+	featurePriority = {
+		"color-pair": 0,
+		"background-color": 1,
+		"color": 2,
+		"bold": 3,
+		"underline": 4,
+		"italic": 5,
+		"strikethrough": 6,
+		"font-size": 7,
+		"font-name": 8,
+		"text-position": 9,
+		"invalid-spelling": 10,
+	}
 
-	otherCounts = [count for pair, count in counter.items() if pair != uniquePairs[0]]
-	if len(otherCounts) != 1:
-		return None, "notUnique"
-	if otherCounts[0] != len(linePairs) - 1:
-		return None, "notUnique"
+	def _token_sort_key(token):
+		featureKey = token[0]
+		return (
+			featurePriority.get(featureKey, 100),
+			len(repr(token[1])),
+		)
 
-	return uniquePairs[0], None
+	selectedToken = sorted(uniqueTokens, key=_token_sort_key)[0]
+	selectedLineIndex = featureLastLineIndex[selectedToken]
+	selectedLineText = lineFeatureData[selectedLineIndex].get("text", "")
+
+	return {
+		"featureKey": selectedToken[0],
+		"featureValue": selectedToken[1],
+		"lineText": selectedLineText,
+		"lineIndex": selectedLineIndex,
+	}, None
 
 
 def _ensure_user_appmodule(appname):
@@ -1030,6 +1198,8 @@ def _get_auto_label_value(nav, method_code):
 		return _get_onecore_ocr_label(nav)
 	if method_code == "C":
 		return _get_automation_id(nav)
+	if method_code == "D":
+		return _get_hover_tooltip_label(nav)
 	return ""
 
 
@@ -1112,6 +1282,49 @@ def _get_automation_id(obj):
 	return ""
 
 
+def _get_hover_tooltip_label(obj):
+	"""Extract tooltip text from UI Automation or NVDA object properties."""
+	try:
+		# Try to get tooltip from various NVDA object attributes
+		tooltip = getattr(obj, "tooltip", None)
+		if isinstance(tooltip, str) and tooltip.strip():
+			return tooltip.strip()
+		
+		# Try to get description or help text
+		description = getattr(obj, "description", None)
+		if isinstance(description, str) and description.strip():
+			return description.strip()
+		
+		# Try UIAElement for HelpText property
+		try:
+			from NVDAObjects.UIA import UIA
+			if isinstance(obj, UIA):
+				uiaElement = getattr(obj, "UIAElement", None)
+				if uiaElement:
+					try:
+						helpText = uiaElement.GetCurrentPropertyValue(30088)  # UIA_HelpTextPropertyId = 30088
+						if helpText and isinstance(helpText, str):
+							return helpText.strip()
+					except Exception:
+						pass
+		except ImportError:
+			pass
+		
+		# Try to get from IAccessible interface (older COM-based accessibility)
+		try:
+			iaccessible = getattr(obj, "IAccessible", None)
+			if iaccessible:
+				tooltip = iaccessible.accHelp
+				if tooltip and isinstance(tooltip, str):
+					return tooltip.strip()
+		except Exception:
+			pass
+		
+		return ""
+	except Exception:
+		return ""
+
+
 def _get_control_id(obj):
 	for attr in ("windowControlID", "controlId"):
 		value = getattr(obj, attr, None)
@@ -1122,6 +1335,127 @@ def _get_control_id(obj):
 		except Exception:
 			continue
 	return 0
+
+
+def _is_graphic_object(obj):
+	role = getattr(obj, "role", None)
+	roleName = str(getattr(role, "name", "") or "").upper()
+	if roleName == "GRAPHIC":
+		return True
+	try:
+		return role == getattr(controlTypes.Role, "GRAPHIC", None)
+	except Exception:
+		return False
+
+
+def _iter_subtree_objects(root, maxObjects=6000):
+	if not root:
+		return
+	stack = [root]
+	seen = set()
+	count = 0
+	while stack and count < maxObjects:
+		obj = stack.pop()
+		if obj is None:
+			continue
+		objId = id(obj)
+		if objId in seen:
+			continue
+		seen.add(objId)
+		yield obj
+		count += 1
+		children = []
+		try:
+			child = getattr(obj, "firstChild", None)
+			while child is not None:
+				children.append(child)
+				child = getattr(child, "next", None)
+		except Exception:
+			children = []
+		if children:
+			stack.extend(reversed(children))
+
+
+def _write_graphic_label_overlay_rule(modulePath, labelsByControlId):
+	content = None
+	moduleEncoding = None
+
+	try:
+		with tokenize.open(modulePath) as f:
+			content = f.read()
+			moduleEncoding = getattr(f, "encoding", None)
+	except Exception:
+		for fallbackEncoding in ("utf-8", "utf-8-sig", "mbcs", "cp1252", "latin-1"):
+			try:
+				with open(modulePath, "r", encoding=fallbackEncoding) as f:
+					content = f.read()
+				moduleEncoding = fallbackEncoding
+				break
+			except Exception:
+				continue
+
+	if content is None:
+		return False
+
+	if "import appModuleHandler" not in content:
+		content = "import appModuleHandler\n" + content
+
+	if "class AppModule(" not in content:
+		content += "\n\nclass AppModule(appModuleHandler.AppModule):\n\tpass\n"
+
+	startMarker = "# ScriptManagerGraphicLabelerStart"
+	endMarker = "# ScriptManagerGraphicLabelerEnd"
+	pattern = r"\n?%s.*?%s\n?" % (re.escape(startMarker), re.escape(endMarker))
+	content = re.sub(pattern, "\n", content, flags=re.S)
+
+	orderedItems = ", ".join([
+		"{key}: {value!r}".format(key=key, value=labelsByControlId[key])
+		for key in sorted(labelsByControlId)
+	])
+
+	rule = [
+		"",
+		startMarker,
+		"class ScriptManagerGraphicLabelOverlay(object):",
+		"\tdef _get_name(self):",
+		"\t\tcontrolId = getattr(self, 'windowControlID', 0) or getattr(self, 'controlId', 0) or getattr(self, 'controlid', 0)",
+		"\t\tif not controlId:",
+		"\t\t\treturn super(ScriptManagerGraphicLabelOverlay, self).name",
+		"\t\ttry:",
+		"\t\t\tappmodule = getattr(self, 'appmodule', None) or getattr(self, 'appModule', None)",
+		"\t\t\treturn appmodule.graphiclabels[controlId]",
+		"\t\texcept Exception:",
+		"\t\t\treturn super(ScriptManagerGraphicLabelOverlay, self).name",
+		"",
+		"class AppModule(AppModule):",
+		"\tgraphiclabels = {{{items}}}".format(items=orderedItems),
+		"\tdef chooseNVDAObjectOverlayClasses(self, obj, clsList):",
+		"\t\tsuper().chooseNVDAObjectOverlayClasses(obj, clsList)",
+		"\t\troleName = str(getattr(getattr(obj, 'role', None), 'name', '') or '').upper()",
+		"\t\tif roleName == 'GRAPHIC':",
+		"\t\t\tclsList.insert(0, ScriptManagerGraphicLabelOverlay)",
+		"",
+		endMarker,
+		"",
+	]
+
+	content = content.rstrip() + "\n" + "\n".join(rule)
+
+	writeEncodings = []
+	if moduleEncoding:
+		writeEncodings.append(moduleEncoding)
+	for fallbackEncoding in ("utf-8", "utf-8-sig", "mbcs", "cp1252", "latin-1"):
+		if fallbackEncoding not in writeEncodings:
+			writeEncodings.append(fallbackEncoding)
+
+	for currentEncoding in writeEncodings:
+		try:
+			with open(modulePath, "w", encoding=currentEncoding) as f:
+				f.write(content)
+			return True
+		except Exception:
+			continue
+	return False
 
 
 def _sanitize_identifier(value, default="generated"):
@@ -1368,7 +1702,7 @@ def _write_choose_overlay_rule(modulePath, navObj, label, method):
 	return False
 
 
-def _write_highlight_color_rule(modulePath, foregroundColor, backgroundColor):
+def _write_highlight_marker_rule(modulePath, navObj, markerData):
 	content = None
 	moduleEncoding = None
 
@@ -1389,8 +1723,16 @@ def _write_highlight_color_rule(modulePath, foregroundColor, backgroundColor):
 	if content is None:
 		return False
 
-	if "import appModuleHandler" not in content:
-		content = "import appModuleHandler\n" + content
+	for requiredImport in (
+		"import appModuleHandler",
+		"import api",
+		"import ui",
+		"import wx",
+		"import textInfos",
+		"from scriptHandler import script",
+	):
+		if requiredImport not in content:
+			content = requiredImport + "\n" + content
 
 	if "class AppModule(" not in content:
 		content += "\n\nclass AppModule(appModuleHandler.AppModule):\n\tpass\n"
@@ -1400,31 +1742,178 @@ def _write_highlight_color_rule(modulePath, foregroundColor, backgroundColor):
 	pattern = r"\n?%s.*?%s\n?" % (re.escape(startMarker), re.escape(endMarker))
 	content = re.sub(pattern, "\n", content, flags=re.S)
 
+	featureKey = markerData.get("featureKey")
+	featureValue = markerData.get("featureValue")
+	roleText = str(getattr(navObj, "role", "") or "")
+	windowClassName = str(getattr(navObj, "windowClassName", "") or getattr(navObj, "className", "") or "")
+	controlId = _get_control_id(navObj)
+
 	rule = [
 		"",
 		startMarker,
 		"class AppModule(AppModule):",
-		"\tscriptManagerHighlightForegroundColor = {foreground!r}".format(foreground=foregroundColor),
-		"\tscriptManagerHighlightBackgroundColor = {background!r}".format(background=backgroundColor),
-		"\tdef scriptManagerMatchesHighlightColors(self, foregroundColor, backgroundColor):",
-		"\t\tdef _normalize(colorValue):",
-		"\t\t\tif colorValue is None:",
-		"\t\t\t\treturn None",
-		"\t\t\tif hasattr(colorValue, 'red') and hasattr(colorValue, 'green') and hasattr(colorValue, 'blue'):",
-		"\t\t\t\ttry:",
-		"\t\t\t\t\treturn (int(colorValue.red), int(colorValue.green), int(colorValue.blue))",
-		"\t\t\t\texcept Exception:",
-		"\t\t\t\t\treturn None",
-		"\t\t\tif isinstance(colorValue, (tuple, list)) and len(colorValue) >= 3:",
-		"\t\t\t\ttry:",
-		"\t\t\t\t\treturn (int(colorValue[0]), int(colorValue[1]), int(colorValue[2]))",
-		"\t\t\t\texcept Exception:",
-		"\t\t\t\t\treturn None",
+		"\tscriptManagerHighlightFeatureKey = {featureKey!r}".format(featureKey=featureKey),
+		"\tscriptManagerHighlightFeatureValue = {featureValue!r}".format(featureValue=featureValue),
+		"\tscriptManagerHighlightRoleText = {roleText!r}".format(roleText=roleText),
+		"\tscriptManagerHighlightWindowClassName = {windowClass!r}".format(windowClass=windowClassName),
+		"\tscriptManagerHighlightControlId = {controlId!r}".format(controlId=controlId),
+		"\t_scriptManagerLastSpokenLine = ''",
+		"\tdef _scriptManagerNormalizeColor(self, colorValue):",
+		"\t\tif colorValue is None:",
 		"\t\t\treturn None",
-		"\t\treturn (",
-		"\t\t\t_normalize(foregroundColor) == _normalize(self.scriptManagerHighlightForegroundColor)",
-		"\t\t\tand _normalize(backgroundColor) == _normalize(self.scriptManagerHighlightBackgroundColor)",
-		"\t\t)",
+		"\t\tif hasattr(colorValue, 'red') and hasattr(colorValue, 'green') and hasattr(colorValue, 'blue'):",
+		"\t\t\ttry:",
+		"\t\t\t\treturn (int(colorValue.red), int(colorValue.green), int(colorValue.blue))",
+		"\t\t\texcept Exception:",
+		"\t\t\t\treturn None",
+		"\t\tif isinstance(colorValue, (tuple, list)) and len(colorValue) >= 3:",
+		"\t\t\ttry:",
+		"\t\t\t\treturn (int(colorValue[0]), int(colorValue[1]), int(colorValue[2]))",
+		"\t\t\texcept Exception:",
+		"\t\t\t\treturn None",
+		"\t\treturn None",
+		"\tdef _scriptManagerNormalizeFeatureValue(self, featureKey, featureValue):",
+		"\t\tif featureValue is None:",
+		"\t\t\treturn None",
+		"\t\tif featureKey in ('color', 'background-color'):",
+		"\t\t\treturn self._scriptManagerNormalizeColor(featureValue)",
+		"\t\tif featureKey == 'color-pair' and isinstance(featureValue, (tuple, list)) and len(featureValue) >= 2:",
+		"\t\t\tfirst = self._scriptManagerNormalizeColor(featureValue[0])",
+		"\t\t\tsecond = self._scriptManagerNormalizeColor(featureValue[1])",
+		"\t\t\tif first is None or second is None:",
+		"\t\t\t\treturn None",
+		"\t\t\treturn (first, second)",
+		"\t\tif isinstance(featureValue, bool):",
+		"\t\t\treturn bool(featureValue)",
+		"\t\tif isinstance(featureValue, (int, float)):",
+		"\t\t\treturn featureValue",
+		"\t\tif isinstance(featureValue, str):",
+		"\t\t\tfeatureValue = featureValue.strip()",
+		"\t\t\treturn featureValue if featureValue else None",
+		"\t\treturn None",
+		"\tdef scriptManagerObjectMatchesHighlightTarget(self, obj):",
+		"\t\tif obj is None:",
+		"\t\t\treturn False",
+		"\t\tif self.scriptManagerHighlightRoleText:",
+		"\t\t\tif str(getattr(obj, 'role', '') or '') != self.scriptManagerHighlightRoleText:",
+		"\t\t\t\treturn False",
+		"\t\tif self.scriptManagerHighlightWindowClassName:",
+		"\t\t\tobjClass = str(getattr(obj, 'windowClassName', '') or getattr(obj, 'className', '') or '')",
+		"\t\t\tif objClass != self.scriptManagerHighlightWindowClassName:",
+		"\t\t\t\treturn False",
+		"\t\tif self.scriptManagerHighlightControlId:",
+		"\t\t\tobjControlId = getattr(obj, 'windowControlID', 0) or getattr(obj, 'controlId', 0)",
+		"\t\t\ttry:",
+		"\t\t\t\tobjControlId = int(objControlId)",
+		"\t\t\texcept Exception:",
+		"\t\t\t\tobjControlId = 0",
+		"\t\t\tif objControlId != self.scriptManagerHighlightControlId:",
+		"\t\t\t\treturn False",
+		"\t\treturn True",
+		"\tdef scriptManagerFindHighlightedLine(self, obj):",
+		"\t\tif not self.scriptManagerObjectMatchesHighlightTarget(obj):",
+		"\t\t\treturn ''",
+		"\t\ttry:",
+		"\t\t\tinfo = obj.makeTextInfo(textInfos.POSITION_ALL)",
+		"\t\texcept Exception:",
+		"\t\t\treturn ''",
+		"\t\ttry:",
+		"\t\t\titems = list(info.getTextWithFields({}))",
+		"\t\texcept TypeError:",
+		"\t\t\ttry:",
+		"\t\t\t\titems = list(info.getTextWithFields())",
+		"\t\t\texcept Exception:",
+		"\t\t\t\treturn ''",
+		"\t\texcept Exception:",
+		"\t\t\treturn ''",
+		"\t\tcurrentFeatures = {}",
+		"\t\tlineTextParts = []",
+		"\t\tlineHasMarker = False",
+		"\t\ttargetKey = self.scriptManagerHighlightFeatureKey",
+		"\t\ttargetValue = self._scriptManagerNormalizeFeatureValue(targetKey, self.scriptManagerHighlightFeatureValue)",
+		"\t\tif targetValue is None:",
+		"\t\t\treturn ''",
+		"\t\tdef _flush_line():",
+		"\t\t\tnonlocal lineTextParts, lineHasMarker",
+		"\t\t\tlineText = ''.join(lineTextParts).strip()",
+		"\t\t\tlineTextParts = []",
+		"\t\t\tif lineHasMarker and lineText:",
+		"\t\t\t\treturn lineText",
+		"\t\t\tlineHasMarker = False",
+		"\t\t\treturn ''",
+		"\t\tfor item in items:",
+		"\t\t\tif isinstance(item, textInfos.FieldCommand):",
+		"\t\t\t\tif item.command != 'formatChange':",
+		"\t\t\t\t\tcontinue",
+		"\t\t\t\tfieldData = getattr(item, 'field', None)",
+		"\t\t\t\tif not fieldData:",
+		"\t\t\t\t\tcontinue",
+		"\t\t\t\tfor key in ('color', 'background-color', 'bold', 'italic', 'underline', 'strikethrough', 'invalid-spelling', 'font-name', 'font-size', 'text-position'):",
+		"\t\t\t\t\tif key not in fieldData:",
+		"\t\t\t\t\t\tcontinue",
+		"\t\t\t\t\tnormalized = self._scriptManagerNormalizeFeatureValue(key, fieldData.get(key))",
+		"\t\t\t\t\tif normalized is None:",
+		"\t\t\t\t\t\tcontinue",
+		"\t\t\t\t\tcurrentFeatures[key] = normalized",
+		"\t\t\t\tif 'color' in currentFeatures and 'background-color' in currentFeatures:",
+		"\t\t\t\t\tcurrentFeatures['color-pair'] = (currentFeatures['color'], currentFeatures['background-color'])",
+		"\t\t\t\tcontinue",
+		"\t\t\tif not isinstance(item, str) or not item:",
+		"\t\t\t\tcontinue",
+		"\t\t\tfor chunk in item.splitlines(True):",
+		"\t\t\t\ttextPart = chunk.rstrip('\\r\\n')",
+		"\t\t\t\tif textPart:",
+		"\t\t\t\t\tlineTextParts.append(textPart)",
+		"\t\t\t\t\tif targetKey in currentFeatures and currentFeatures[targetKey] == targetValue:",
+		"\t\t\t\t\t\tlineHasMarker = True",
+		"\t\t\t\tif chunk.endswith('\\n') or chunk.endswith('\\r'):",
+		"\t\t\t\t\tline = _flush_line()",
+		"\t\t\t\t\tif line:",
+		"\t\t\t\t\t\treturn line",
+		"\t\tline = _flush_line()",
+		"\t\tif line:",
+		"\t\t\treturn line",
+		"\t\treturn ''",
+		"\tdef scriptManagerMaybeSpeakHighlightedLine(self, obj):",
+		"\t\tline = self.scriptManagerFindHighlightedLine(obj)",
+		"\t\tif not line:",
+		"\t\t\treturn",
+		"\t\tif line == self._scriptManagerLastSpokenLine:",
+		"\t\t\treturn",
+		"\t\tself._scriptManagerLastSpokenLine = line",
+		"\t\tui.message(line)",
+		"\tdef _scriptManagerHandleArrow(self, gesture):",
+		"\t\tgesture.send()",
+		"\t\tfocus = api.getFocusObject()",
+		"\t\tif not self.scriptManagerObjectMatchesHighlightTarget(focus):",
+		"\t\t\treturn",
+		"\t\twx.CallLater(30, self.scriptManagerMaybeSpeakHighlightedLine, focus)",
+		"\t@script(gesture='kb:upArrow')",
+		"\tdef script_scriptManagerUpArrow(self, gesture):",
+		"\t\tself._scriptManagerHandleArrow(gesture)",
+		"\t@script(gesture='kb:downArrow')",
+		"\tdef script_scriptManagerDownArrow(self, gesture):",
+		"\t\tself._scriptManagerHandleArrow(gesture)",
+		"\t@script(gesture='kb:pageUp')",
+		"\tdef script_scriptManagerPageUp(self, gesture):",
+		"\t\tself._scriptManagerHandleArrow(gesture)",
+		"\t@script(gesture='kb:pageDown')",
+		"\tdef script_scriptManagerPageDown(self, gesture):",
+		"\t\tself._scriptManagerHandleArrow(gesture)",
+		"\t@script(gesture='kb:home')",
+		"\tdef script_scriptManagerHome(self, gesture):",
+		"\t\tself._scriptManagerHandleArrow(gesture)",
+		"\t@script(gesture='kb:end')",
+		"\tdef script_scriptManagerEnd(self, gesture):",
+		"\t\tself._scriptManagerHandleArrow(gesture)",
+		"\tdef event_valueChange(self, obj, nextHandler):",
+		"\t\tnextHandler()",
+		"\t\tif self.scriptManagerObjectMatchesHighlightTarget(obj):",
+		"\t\t\twx.CallLater(30, self.scriptManagerMaybeSpeakHighlightedLine, obj)",
+		"\tdef event_gainFocus(self, obj, nextHandler):",
+		"\t\tnextHandler()",
+		"\t\tif self.scriptManagerObjectMatchesHighlightTarget(obj):",
+		"\t\t\twx.CallLater(30, self.scriptManagerMaybeSpeakHighlightedLine, obj)",
 		endMarker,
 		"",
 	]

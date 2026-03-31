@@ -797,10 +797,24 @@ def _copy_scratchpad_to_addon(addon_dir):
 		source_path = os.path.join(scratchpad_dir, entry)
 		target_path = os.path.join(addon_dir, entry)
 		if os.path.isdir(source_path):
-			shutil.copytree(source_path, target_path, dirs_exist_ok=True)
+			_copy_directory_without_empty_folders(source_path, target_path)
 		else:
 			os.makedirs(os.path.dirname(target_path), exist_ok=True)
 			shutil.copy2(source_path, target_path)
+
+
+def _copy_directory_without_empty_folders(source_dir, target_dir):
+	"""Copy directory contents while skipping empty folders."""
+	for root, _dirs, files in os.walk(source_dir):
+		if not files:
+			continue
+		relative_root = os.path.relpath(root, source_dir)
+		target_root = target_dir if relative_root == '.' else os.path.join(target_dir, relative_root)
+		os.makedirs(target_root, exist_ok=True)
+		for filename in files:
+			source_file = os.path.join(root, filename)
+			target_file = os.path.join(target_root, filename)
+			shutil.copy2(source_file, target_file)
 
 
 def _write_runtime_manifest(addon_dir, manifest_data):
