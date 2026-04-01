@@ -4,6 +4,7 @@ import os
 import shutil
 import threading
 import time
+import ast
 impPath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(impPath)
 import sm_backend
@@ -1148,6 +1149,7 @@ class scriptmanager_mainwindow(wx.Frame):
         "synthDriver": _("&speech synthesizer driver"),
         "visionEnhancementProvider": _("&visual enhancement provider"),
     }
+    _FOCUS_RETRY_DELAYS_MS = (0, 80, 200, 400)
 
     def __init__(self, parent, id, title, scriptfile):
         wx.Frame.__init__(self, parent, id, title)
@@ -1207,6 +1209,16 @@ class scriptmanager_mainwindow(wx.Frame):
             _("previous script\tshift+f2"),
             _("Go to previous script definition"),
         )
+        scripts.Append(
+            226,
+            _("script &list\tctrl+l"),
+            _("Show all script definitions with line numbers"),
+        )
+        scripts.Append(
+            227,
+            _("&delete Script\tctrl+d"),
+            _("Delete the current script definition"),
+        )
         edit.AppendSeparator()
         scripts.Append(220, _("&next error\talt+Down"), _("Go to next script error"))
         scripts.Append(
@@ -1216,6 +1228,11 @@ class scriptmanager_mainwindow(wx.Frame):
             222,
             _("check script errors\tctrl+shift+e"),
             _("Check and display all script errors"),
+        )
+        scripts.Append(
+            228,
+            _("error &list\tctrl+shift+l"),
+            _("Show all errors in a list"),
         )
         help.Append(901, _("&about..."))
         menubar.Append(filemenu, _("&File"))
@@ -1241,6 +1258,9 @@ class scriptmanager_mainwindow(wx.Frame):
                     (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("S"), 103),
                     (wx.ACCEL_CTRL, ord("R"), 213),
                     (wx.ACCEL_CTRL, ord("W"), 214),
+                    (wx.ACCEL_CTRL, ord("L"), 226),
+                    (wx.ACCEL_CTRL, ord("D"), 227),
+                    (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("L"), 228),
                 ]
             )
         )
@@ -1263,10 +1283,13 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnGotoLineItem, id=211)
         self.Bind(wx.EVT_MENU, self.OnNextScriptDefinition, id=224)
         self.Bind(wx.EVT_MENU, self.OnPreviousScriptDefinition, id=225)
+        self.Bind(wx.EVT_MENU, self.OnShowScriptList, id=226)
+        self.Bind(wx.EVT_MENU, self.OnDeleteCurrentScriptDefinition, id=227)
         self.Bind(wx.EVT_MENU, self.OnAbout, id=901)
         self.Bind(wx.EVT_MENU, self.OnNextError, id=220)
         self.Bind(wx.EVT_MENU, self.OnPreviousError, id=221)
         self.Bind(wx.EVT_MENU, self.OnCheckErrors, id=222)
+        self.Bind(wx.EVT_MENU, self.OnShowErrorList, id=228)
         self.Bind(wx.EVT_FIND, self.on_find)
         # self.Bind(wx.EVT_FIND_NEXT, self.findnext)
         self.Bind(wx.EVT_FIND_REPLACE, self.on_replace)
@@ -1339,6 +1362,41 @@ class scriptmanager_mainwindow(wx.Frame):
             self._update_scratchpad_required_menu_state()
         event.Skip()
 
+    def _focus_editor_now(self):
+        try:
+            if self.IsIconized():
+                self.Iconize(False)
+        except Exception:
+            pass
+        try:
+            self.Show(True)
+        except Exception:
+            pass
+        try:
+            self.Raise()
+        except Exception:
+            pass
+        try:
+            self.RequestUserAttention(wx.USER_ATTENTION_INFO)
+        except Exception:
+            pass
+        try:
+            self.SetFocus()
+        except Exception:
+            pass
+        try:
+            self.text.SetFocus()
+        except Exception:
+            pass
+
+    def bring_to_foreground(self):
+        # Retry briefly because Windows may ignore the first foreground request.
+        for delay in self._FOCUS_RETRY_DELAYS_MS:
+            if delay <= 0:
+                self._focus_editor_now()
+            else:
+                wx.CallLater(delay, self._focus_editor_now)
+
     def _onMenuOpen(self, event):
         self._update_scratchpad_required_menu_state()
         self._update_edit_menu_state()
@@ -1396,6 +1454,12 @@ class scriptmanager_mainwindow(wx.Frame):
         item = menuBar.FindItemById(225)
         if item is not None:
             item.Enable(has_scripts)
+        item = menuBar.FindItemById(226)
+        if item is not None:
+            item.Enable(has_scripts)
+        item = menuBar.FindItemById(227)
+        if item is not None:
+            item.Enable(self._get_current_script_entry() is not None)
 
         # next error (220) / previous error (221)
         item = menuBar.FindItemById(220)
@@ -2630,14 +2694,258 @@ def {clean_name}(self, gesture):
         """Springt zur vorherigen Scriptdefinition (def script_...)."""
         self._goto_script_definition(forward=False)
 
+    def OnShowScriptList(self, event):
+        """Shows all script definitions and allows jumping/deleting."""
+        entries = self._get_script_entries()
+        if not entries:
+            wx.Bell()
+            msg = _("no script definitions found")
+            self.statusbar.SetStatusText(msg, 1)
+            ui.message(msg)
+            return
+
+        choices = [entry["display"] for entry in entries]
+        dlg = wx.Dialog(self, title=_("Script list"))
+        listBox = wx.ListBox(dlg, choices=choices, style=wx.LB_SINGLE)
+        currentEntry = self._get_current_script_entry(entries)
+        if currentEntry is not None:
+            for index, entry in enumerate(entries):
+                if entry["startLine"] == currentEntry["startLine"]:
+                    listBox.SetSelection(index)
+                    break
+        elif choices:
+            listBox.SetSelection(0)
+
+        gotoButton = wx.Button(dlg, wx.ID_OK, _("&Go to"))
+        deleteButton = wx.Button(dlg, wx.ID_DELETE, _("&Delete"))
+        cancelButton = wx.Button(dlg, wx.ID_CANCEL, _("&Close"))
+        gotoButton.SetDefault()
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(listBox, 1, wx.ALL | wx.EXPAND, 10)
+        buttonSizer = wx.BoxSizer(wx.HORIZONTAL)
+        buttonSizer.Add(gotoButton, 0, wx.RIGHT, 8)
+        buttonSizer.Add(deleteButton, 0, wx.RIGHT, 8)
+        buttonSizer.Add(cancelButton, 0)
+        sizer.Add(buttonSizer, 0, wx.ALL | wx.ALIGN_RIGHT, 10)
+        dlg.SetSizerAndFit(sizer)
+
+        listBox.Bind(wx.EVT_LISTBOX_DCLICK, lambda evt: dlg.EndModal(wx.ID_OK))
+
+        def _onScriptListCharHook(evt):
+            if evt.GetKeyCode() in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+                dlg.EndModal(wx.ID_OK)
+                return
+            evt.Skip()
+
+        listBox.Bind(wx.EVT_CHAR_HOOK, _onScriptListCharHook)
+
+        result = dlg.ShowModal()
+        selection = listBox.GetSelection()
+        dlg.Destroy()
+
+        if selection < 0 or selection >= len(entries):
+            return
+
+        selectedEntry = entries[selection]
+        if result == wx.ID_OK:
+            self._goto_script_entry(selectedEntry)
+            return
+        if result == wx.ID_DELETE:
+            self._delete_script_entry(selectedEntry)
+
+    def OnDeleteCurrentScriptDefinition(self, event):
+        """Deletes the script definition at the current caret position."""
+        entry = self._get_current_script_entry()
+        if entry is None:
+            wx.Bell()
+            msg = _("cursor is not inside a script definition")
+            self.statusbar.SetStatusText(msg, 1)
+            ui.message(msg)
+            return
+        self._delete_script_entry(entry)
+
+    def OnShowErrorList(self, event):
+        """Shows all current script errors in a list and allows jumping."""
+        script_content = self.text.GetValue()
+        if not script_content.strip():
+            ui.message(_("No script content to check"))
+            return
+
+        self.errors, _error_detail_str = sm_backend.check_script_for_errors(script_content)
+        if not self.errors:
+            wx.Bell()
+            msg = _("no errors found")
+            self.statusbar.SetStatusText(msg, 1)
+            ui.message(msg)
+            return
+
+        choices = []
+        for err in self.errors:
+            line_num = err.get("line", 1)
+            message = str(err.get("message", _("Unknown error")))
+            choices.append(_("Line {line}: {msg}").format(line=line_num, msg=message))
+
+        dlg = wx.Dialog(self, title=_("Error list"))
+        listBox = wx.ListBox(dlg, choices=choices, style=wx.LB_SINGLE)
+        listBox.SetSelection(0)
+        gotoButton = wx.Button(dlg, wx.ID_OK, _("&Go to"))
+        closeButton = wx.Button(dlg, wx.ID_CANCEL, _("&Close"))
+        gotoButton.SetDefault()
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(listBox, 1, wx.ALL | wx.EXPAND, 10)
+        buttonSizer = wx.BoxSizer(wx.HORIZONTAL)
+        buttonSizer.Add(gotoButton, 0, wx.RIGHT, 8)
+        buttonSizer.Add(closeButton, 0)
+        sizer.Add(buttonSizer, 0, wx.ALL | wx.ALIGN_RIGHT, 10)
+        dlg.SetSizerAndFit(sizer)
+
+        listBox.Bind(wx.EVT_LISTBOX_DCLICK, lambda evt: dlg.EndModal(wx.ID_OK))
+
+        def _onErrorListCharHook(evt):
+            if evt.GetKeyCode() in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+                dlg.EndModal(wx.ID_OK)
+                return
+            evt.Skip()
+
+        listBox.Bind(wx.EVT_CHAR_HOOK, _onErrorListCharHook)
+
+        result = dlg.ShowModal()
+        selection = listBox.GetSelection()
+        dlg.Destroy()
+
+        if result != wx.ID_OK:
+            return
+        if selection < 0 or selection >= len(self.errors):
+            return
+        self.current_error_index = selection
+        self._goto_error(selection)
+
+    def _get_script_entries(self):
+        """Returns script entries with name, range and display text."""
+        content = self.text.GetValue()
+        entries = []
+        try:
+            module = ast.parse(content)
+        except Exception:
+            module = None
+
+        if module is not None:
+            for node in module.body:
+                if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                if not str(getattr(node, "name", "")).startswith("script_"):
+                    continue
+                start_line = getattr(node, "lineno", 1) - 1
+                for decorator in getattr(node, "decorator_list", []):
+                    start_line = min(start_line, getattr(decorator, "lineno", start_line + 1) - 1)
+                end_line = getattr(node, "end_lineno", getattr(node, "lineno", 1)) - 1
+                entries.append(
+                    {
+                        "name": node.name,
+                        "defLine": max(0, getattr(node, "lineno", 1) - 1),
+                        "startLine": max(0, start_line),
+                        "endLine": max(0, end_line),
+                    }
+                )
+        else:
+            pattern = re.compile(r"^\s*def\s+(script_[a-zA-Z0-9_]*)\s*\(")
+            raw_lines = content.splitlines()
+            def_lines = []
+            for line_index, raw_line in enumerate(raw_lines):
+                match = pattern.match(raw_line)
+                if match:
+                    def_lines.append((line_index, match.group(1)))
+            for idx, (line_index, script_name) in enumerate(def_lines):
+                start_line = line_index
+                while start_line > 0:
+                    previous = raw_lines[start_line - 1].strip()
+                    if previous.startswith("@") or previous == "":
+                        start_line -= 1
+                        continue
+                    break
+                end_line = (def_lines[idx + 1][0] - 1) if idx + 1 < len(def_lines) else max(0, len(raw_lines) - 1)
+                entries.append(
+                    {
+                        "name": script_name,
+                        "defLine": line_index,
+                        "startLine": start_line,
+                        "endLine": max(start_line, end_line),
+                    }
+                )
+
+        entries = sorted(entries, key=lambda item: item["startLine"])
+        for entry in entries:
+            entry["display"] = _("{name} (line {line})").format(
+                name=entry["name"],
+                line=int(entry.get("defLine", entry.get("startLine", 0))) + 1,
+            )
+        return entries
+
+    def _get_current_script_entry(self, entries=None):
+        entries = entries if entries is not None else self._get_script_entries()
+        if not entries:
+            return None
+        try:
+            _x, current_line = self.text.PositionToXY(self.text.GetInsertionPoint())
+        except Exception:
+            current_line = 0
+        for entry in entries:
+            if entry["startLine"] <= current_line <= entry["endLine"]:
+                return entry
+        return None
+
+    def _goto_script_entry(self, entry):
+        def_line = max(0, int(entry.get("defLine", entry.get("startLine", 0))))
+        pos = self.text.XYToPosition(0, def_line)
+        self.text.SetInsertionPoint(pos)
+        self.text.SetSelection(pos, pos)
+        try:
+            self.text.ShowPosition(pos)
+        except Exception:
+            pass
+        msg = _("script definition line {line}").format(line=def_line + 1)
+        self.statusbar.SetStatusText(msg, 1)
+        ui.message(msg)
+
+    def _delete_script_entry(self, entry):
+        start_line = max(0, int(entry.get("startLine", 0)))
+        end_line = max(start_line, int(entry.get("endLine", start_line)))
+
+        delete_name = str(entry.get("name", "script"))
+        if (
+            wx.MessageBox(
+                _("Delete script {name}?").format(name=delete_name),
+                _("Script Manager"),
+                wx.YES_NO | wx.ICON_QUESTION,
+            )
+            != wx.YES
+        ):
+            return
+
+        start_pos = self.text.XYToPosition(0, start_line)
+        total_lines = self.text.GetNumberOfLines()
+        if end_line + 1 < total_lines:
+            end_pos = self.text.XYToPosition(0, end_line + 1)
+        else:
+            end_pos = self.text.GetLastPosition()
+
+        self.text.Remove(start_pos, end_pos)
+        new_pos = min(start_pos, self.text.GetLastPosition())
+        self.text.SetInsertionPoint(new_pos)
+        self.text.SetSelection(new_pos, new_pos)
+        self.modify = True
+        self._update_window_title()
+        self._update_edit_menu_state()
+
+        msg = _("script {name} deleted").format(name=delete_name)
+        self.statusbar.SetStatusText(msg, 1)
+        ui.message(msg)
+
     def _get_script_definition_lines(self):
         """Liefert alle Zeilenindizes mit Scriptdefinitionen."""
-        lines = []
-        pattern = re.compile(r"^\s*def\s+script_[a-zA-Z0-9_]*\s*\(")
-        for line_index in range(self.text.GetNumberOfLines()):
-            if pattern.match(self.text.GetLineText(line_index)):
-                lines.append(line_index)
-        return lines
+        return [int(entry.get("defLine", entry["startLine"])) for entry in self._get_script_entries()]
 
     def _goto_script_definition(self, forward=True):
         """Springt zur nächsten/vorherigen Scriptdefinition und signalisiert Umbruch."""

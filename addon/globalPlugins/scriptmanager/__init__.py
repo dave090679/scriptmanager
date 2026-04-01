@@ -26,6 +26,7 @@ sys.path.append(impPath)
 import sm_backend, sm_frontend
 addonHandler.initTranslation()
 from scriptHandler import script, getLastScriptRepeatCount
+from logHandler import log
 
 AUTO_LABEL_METHODS = (
 	("A", _("A: Text child objects")),
@@ -204,18 +205,18 @@ class ScriptManagerSettingsPanel(settingsDialogs.SettingsPanel):
 			_("no"),
 		]
 		self.scratchpadModeChoice = helper.addLabeledControl(
-			_("scratchpad bei bedarf aktivieren"),
+			_("Enable scratchpad when needed"),
 			wx.Choice,
 			choices=scratchpadChoices,
 		)
 		self.includeBlacklistCheckBox = helper.addItem(
 			wx.CheckBox(
 				self,
-				label=_("Modul-Blacklist in 'Funktion einfügen'-Dialog einschließen"),
+				label=_("Include module blacklist in 'Insert function' dialog"),
 			)
 		)
 		self.translateDocstringsCheckBox = helper.addItem(
-			wx.CheckBox(self, label=_("Docstrings übersetzen"))
+			wx.CheckBox(self, label=_("Translate docstrings"))
 		)
 		self.showAddonFolderHintCheckBox = helper.addItem(
 			wx.CheckBox(
@@ -567,7 +568,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			self.loadappmodule(appname)
 
 	def onToolsEmptyFile(self, evt):
-		self.loadappmodule("")
+		self.loadappmodule("", source="toolsMenu")
 
 	def onToolsCreateAppModule(self, evt):
 		appName = self._toolsAppNameByMenuId.get(evt.GetId())
@@ -618,14 +619,20 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	)
 	def script_scriptmanager(self, gesture):
 		if not self._ensureScratchpadForAction(_("Script Manager needs scratchpad to load appModules.")):
-			self.loadappmodule("")
+			self.loadappmodule("", source="gestureScratchpadFallback")
 			return
 		focus = api.getFocusObject()
 		processId = getattr(focus, "processID", 0) if focus else 0
 		appname = appModuleHandler.getAppNameFromProcessID(processId, False) if processId else ""
-		wx.CallAfter(self._prepareAndLoadAppModule, appname)
+		self._prepareAndLoadAppModule(appname)
 
-	def loadappmodule(self, appname):
+	def loadappmodule(self, appname, source="unknown"):
+		log.debug(
+			"ScriptManager open requested: source=%s appname=%r scratchpadEnabled=%s",
+			source,
+			appname,
+			sm_backend.is_scratchpad_enabled(),
+		)
 		if appname and sm_backend.is_scratchpad_enabled():
 			userconfigfile = _get_scratchpad_appmodule_path(appname, ensure_exists=True)
 			frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), userconfigfile)
@@ -634,7 +641,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		frame.Show(True)
 		frame.SetPosition(wx.Point(0, 0))
 		frame.SetSize(wx.DisplaySize())
-		frame.text.SetFocus()
+		if hasattr(frame, "bring_to_foreground"):
+			frame.bring_to_foreground()
+		else:
+			frame.Raise()
+			frame.text.SetFocus()
 
 	@script(
 		description=_("creates a new label for the focused object and saves a labeling rule in the appModule"),
