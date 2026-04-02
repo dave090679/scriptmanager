@@ -5,6 +5,7 @@ import shutil
 import threading
 import time
 import ast
+import importlib
 impPath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(impPath)
 import sm_backend
@@ -17,6 +18,292 @@ import addonAPIVersion
 import re
 from gui import guiHelper
 addonHandler.initTranslation()
+
+import typing
+import inspect
+
+
+class _TextCallRef(object):
+    """Text-based fallback reference for a method call in editor content."""
+
+    __slots__ = ("start_pos", "end_pos", "args_start", "args_end", "func_text")
+
+    def __init__(self, start_pos, end_pos, args_start, args_end, func_text):
+        self.start_pos = int(start_pos)
+        self.end_pos = int(end_pos)
+        self.args_start = int(args_start)
+        self.args_end = int(args_end)
+        self.func_text = str(func_text or "")
+
+
+def _ast_string_value(node):
+    """Extract string value from an AST node (handles literals and _('...') calls)."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if hasattr(ast, "Str") and isinstance(node, ast.Str):
+        return node.s
+    if isinstance(node, ast.Call):
+        func = node.func
+        if (isinstance(func, ast.Name) and func.id == "_"
+                and len(node.args) == 1 and not node.keywords):
+            return _ast_string_value(node.args[0])
+    return ""
+
+
+def _ast_bool_value(node):
+    """Extract bool value from an AST node."""
+    if isinstance(node, ast.Constant):
+        return bool(node.value)
+    if hasattr(ast, "NameConstant") and isinstance(node, ast.NameConstant):
+        return bool(node.value)
+    return False
+
+
+def _ast_attribute_value(node):
+    """Extract dotted attribute chain as string, e.g. 'sayAll.CURSOR_CARET'."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent = _ast_attribute_value(node.value)
+        if parent:
+            return f"{parent}.{node.attr}"
+        return node.attr
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return ""
+
+
+def _ast_value_to_python(node, source_text=""):
+    """Convert an AST value node to a Python value, or a source string."""
+    if isinstance(node, ast.Constant):
+        return node.value
+    if hasattr(ast, "Str") and isinstance(node, ast.Str):
+        return node.s
+    if hasattr(ast, "Num") and isinstance(node, ast.Num):
+        return node.n
+    if hasattr(ast, "NameConstant") and isinstance(node, ast.NameConstant):
+        return node.value
+    if isinstance(node, ast.Call):
+        func = node.func
+        if (isinstance(func, ast.Name) and func.id == "_"
+                and len(node.args) == 1 and not node.keywords):
+            return _ast_value_to_python(node.args[0], source_text)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        val = _ast_value_to_python(node.operand, source_text)
+        if isinstance(val, (int, float)):
+            return -val
+    if source_text and hasattr(node, "lineno"):
+        try:
+            seg = ast.get_source_segment(source_text, node)
+            if seg is not None:
+                return seg
+        except Exception:
+            pass
+    return None
+
+
+def _get_call_func_name(func_node):
+    """Get the dotted name string of a Call's function node, or None."""
+    if isinstance(func_node, ast.Name):
+        return func_node.id
+    if isinstance(func_node, ast.Attribute):
+        parent = _get_call_func_name(func_node.value)
+        if parent is not None:
+            return f"{parent}.{func_node.attr}"
+    return None
+
+
+def _build_import_alias_map(source_text, package_name=""):
+    """Build an alias map from import statements in source_text."""
+    alias_map = {}
+    if not source_text:
+        return alias_map
+    try:
+        tree = ast.parse(source_text)
+    except Exception:
+        return alias_map
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname:
+                    alias_map[alias.asname] = alias.name
+        elif isinstance(node, ast.ImportFrom):
+            resolved_module = node.module or ""
+            if node.level:
+                if not package_name:
+                    continue
+                try:
+                    resolved_module = importlib.util.resolve_name(
+                        "." * node.level + (node.module or ""), package_name
+                    )
+                except Exception:
+                    continue
+            elif not resolved_module:
+                continue
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                if alias.asname:
+                    alias_map[alias.asname] = f"{resolved_module}.{alias.name}"
+    return alias_map
+
+
+def _resolve_callable_by_name(name, source_text="", package_name=""):
+    """Try to resolve a callable for a dotted name via modules and import aliases."""
+    if not name:
+        return None
+
+    candidate_names = [name]
+    alias_map = _build_import_alias_map(source_text, package_name)
+    if alias_map:
+        if "." in name:
+            root, rest = name.split(".", 1)
+            target = alias_map.get(root)
+            if target:
+                candidate_names.append(f"{target}.{rest}")
+        else:
+            target = alias_map.get(name)
+            if target:
+                candidate_names.append(target)
+
+    seen = set()
+    unique_candidates = []
+    for cand in candidate_names:
+        if cand in seen:
+            continue
+        seen.add(cand)
+        unique_candidates.append(cand)
+
+    for candidate in unique_candidates:
+        parts = candidate.split(".")
+
+        # First, try already loaded modules.
+        for i in range(len(parts), 0, -1):
+            module_key = ".".join(parts[:i])
+            mod = sys.modules.get(module_key)
+            if mod is None:
+                continue
+            obj = mod
+            try:
+                for attr in parts[i:]:
+                    obj = getattr(obj, attr)
+                if callable(obj):
+                    return obj
+            except AttributeError:
+                continue
+
+        # If not loaded yet, try importing module prefixes on demand.
+        for i in range(len(parts), 0, -1):
+            module_key = ".".join(parts[:i])
+            try:
+                mod = importlib.import_module(module_key)
+            except Exception:
+                continue
+            obj = mod
+            try:
+                for attr in parts[i:]:
+                    obj = getattr(obj, attr)
+                if callable(obj):
+                    return obj
+            except AttributeError:
+                continue
+
+    return None
+
+
+def _classify_param_for_dialog(param):
+    """Classify an inspect.Parameter and return a pinfo dict for MethodCallEditDialog."""
+    annotation = param.annotation
+    default = param.default if param.default != inspect.Parameter.empty else None
+
+    pinfo = {
+        "default": default,
+        "type": "str",
+        "choices": [],
+        "choices_raw": [],
+        "min":-2 ** 16,
+        "max": 2 ** 16,
+    }
+
+    ann = annotation
+    if ann is inspect.Parameter.empty:
+        if isinstance(default, bool):
+            pinfo["type"] = "bool"
+        elif isinstance(default, int):
+            pinfo["type"] = "int"
+        elif isinstance(default, float):
+            pinfo["type"] = "float"
+        return pinfo
+
+    origin = getattr(ann, "__origin__", None)
+    args = getattr(ann, "__args__", ())
+
+    if origin is typing.Union:
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            ann = non_none[0]
+            origin = getattr(ann, "__origin__", None)
+            args = getattr(ann, "__args__", ())
+
+    if origin is typing.Literal:
+        choices_raw = list(args)
+        choices_str = [str(c) for c in choices_raw]
+        pinfo["type"] = "choices"
+        pinfo["choices"] = choices_str
+        pinfo["choices_raw"] = choices_raw
+        return pinfo
+
+    if ann is bool or ann == "bool":
+        pinfo["type"] = "bool"
+    elif ann is int or ann == "int":
+        pinfo["type"] = "int"
+    elif ann is float or ann == "float":
+        pinfo["type"] = "float"
+    elif ann is str or ann == "str":
+        pinfo["type"] = "str"
+    elif isinstance(ann, type) and issubclass(ann, int):
+        try:
+            members = [e.value for e in ann]
+            if members:
+                pinfo["type"] = "choices"
+                pinfo["choices"] = [str(m) for m in members]
+                pinfo["choices_raw"] = members
+                return pinfo
+        except Exception:
+            pass
+        pinfo["type"] = "int"
+    return pinfo
+
+
+def _python_value_to_source(ptype, val, pinfo):
+    """Convert a Python value to a source code string for the given param type."""
+    if val is None:
+        return None
+    if ptype == "bool":
+        return "True" if val else "False"
+    if ptype == "int":
+        try:
+            return str(int(val))
+        except (ValueError, TypeError):
+            return None
+    if ptype == "float":
+        try:
+            return repr(float(val))
+        except (ValueError, TypeError):
+            return None
+    if ptype == "choices":
+        choices_raw = pinfo.get("choices_raw", [])
+        choices_str = pinfo.get("choices", [])
+        val_str = str(val)
+        for raw, s in zip(choices_raw, choices_str):
+            if s == val_str:
+                if isinstance(raw, str):
+                    return repr(raw)
+                return str(raw)
+        return repr(val) if isinstance(val, str) else str(val)
+    # str
+    return repr(str(val))
 
 
 class insertfunctionsdialog(wx.Dialog):
@@ -878,20 +1165,99 @@ class newscriptdialog(wx.Dialog):
             wx.MessageBox(_("Please enter a script name."), _("Missing Information"))
             self.name_ctrl.SetFocus()
             return
-        
-        self.EndModal(wx.ID_OK)
+
+        self._safeEndModal(wx.ID_OK)
     
     def onCancel(self, event):
         """Event-Handler für Cancel-Button."""
         if self.key_capture_active:
             self._stopCaptureGesture(canceled=True)
-        self.EndModal(wx.ID_CANCEL)
+        self._safeEndModal(wx.ID_CANCEL)
+
+    def _safeEndModal(self, code):
+        """Close dialog safely, avoiding duplicate EndModal calls."""
+        try:
+            if self.IsModal():
+                self.EndModal(code)
+                return
+        except Exception:
+            pass
+        try:
+            self.SetReturnCode(code)
+        except Exception:
+            pass
+        try:
+            self.Close()
+        except Exception:
+            pass
 
     def onDestroy(self, event):
         """Räumt aktive Gesture-Capture-Callbacks bei Dialogzerstörung auf."""
         if self.key_capture_active:
             self._stopCaptureGesture(canceled=True, updateUI=False)
         event.Skip()
+
+    def populate_from_data(self, data):
+        """Pre-fill dialog controls from a dict of @script decorator values."""
+        if not data:
+            return
+        name = data.get("name", "")
+        if name:
+            try:
+                self.name_ctrl.SetValue(name)
+            except Exception:
+                pass
+        description = data.get("description", "")
+        if description is not None:
+            try:
+                self.desc_ctrl.SetValue(description)
+            except Exception:
+                pass
+        category = data.get("category", "")
+        if category is not None:
+            try:
+                self.category_ctrl.SetValue(category)
+            except Exception:
+                pass
+        gestures = data.get("gestures", [])
+        gesture = data.get("gesture", "")
+        if not gestures and gesture:
+            gestures = [gesture]
+        self.gesture_identifiers = []
+        if gestures:
+            try:
+                self.gestures_list.Clear()
+                for g in gestures:
+                    if g:
+                        self.gesture_identifiers.append(g)
+                        self.gestures_list.Append(self._getDisplayTextForGestureIdentifier(g))
+                if self.gestures_list.GetCount() > 0:
+                    self.gestures_list.SetSelection(0)
+            except Exception:
+                pass
+        for key, ctrl_name in [
+            ("canPropagate", "can_propagate_ctrl"),
+            ("bypassInputHelp", "bypass_input_help_ctrl"),
+            ("allowInSleepMode", "allow_sleep_mode_ctrl"),
+            ("speakOnDemand", "speak_on_demand_ctrl"),
+        ]:
+            val = data.get(key)
+            if val is not None:
+                try:
+                    ctrl = getattr(self, ctrl_name)
+                    ctrl.SetValue(bool(val))
+                except Exception:
+                    pass
+        resume_val = data.get("resumeSayAllMode")
+        if resume_val is not None:
+            try:
+                self.resume_say_all_ctrl.SetValue(str(resume_val))
+            except Exception:
+                pass
+        try:
+            self._updateGestureControlsState()
+        except Exception:
+            pass
 
 
 class addonmanifestdialog(wx.Dialog):
@@ -1131,6 +1497,112 @@ class _AddonFolderHintDialog(wx.Dialog):
         self.EndModal(wx.ID_CANCEL)
 
 
+class MethodCallEditDialog(wx.Dialog):
+    """Dynamic dialog for editing the parameters of a method call."""
+
+    def __init__(self, parent, call_name, params_info, current_values):
+        super().__init__(parent, title=_("Edit method call: {name}").format(name=call_name))
+        self._params_info = params_info
+        self._controls = {}
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        helper = guiHelper.BoxSizerHelper(self, sizer=main_sizer)
+
+        scroll = wx.ScrolledWindow(self, style=wx.VSCROLL)
+        scroll.SetScrollRate(0, 20)
+        scroll_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        for pinfo in params_info:
+            pname = pinfo["name"]
+            ptype = pinfo["type"]
+            pdefault = pinfo.get("default")
+            cur_val = current_values.get(pname, pdefault)
+
+            label = wx.StaticText(scroll, label=pname + ":")
+            scroll_sizer.Add(label, 0, wx.TOP | wx.LEFT, 6)
+
+            if ptype == "bool":
+                ctrl = wx.CheckBox(scroll)
+                ctrl.SetValue(bool(cur_val) if cur_val is not None else False)
+                scroll_sizer.Add(ctrl, 0, wx.LEFT | wx.BOTTOM, 6)
+
+            elif ptype == "int":
+                mn = pinfo.get("min", -2 ** 16)
+                mx = pinfo.get("max", 2 ** 16)
+                try:
+                    init_val = int(cur_val) if cur_val is not None else (int(pdefault) if pdefault is not None else 0)
+                except (ValueError, TypeError):
+                    init_val = 0
+                ctrl = wx.SpinCtrl(scroll, min=mn, max=mx, initial=init_val)
+                scroll_sizer.Add(ctrl, 0, wx.LEFT | wx.BOTTOM, 6)
+
+            elif ptype == "float":
+                mn = float(pinfo.get("min", -1e9))
+                mx = float(pinfo.get("max", 1e9))
+                try:
+                    init_val = float(cur_val) if cur_val is not None else (float(pdefault) if pdefault is not None else 0.0)
+                except (ValueError, TypeError):
+                    init_val = 0.0
+                ctrl = wx.SpinCtrlDouble(scroll, min=mn, max=mx, initial=init_val, inc=pinfo.get("inc", 0.1))
+                scroll_sizer.Add(ctrl, 0, wx.LEFT | wx.BOTTOM, 6)
+
+            elif ptype == "choices":
+                choices = pinfo.get("choices", [])
+                ctrl = wx.ComboBox(scroll, choices=choices, style=wx.CB_READONLY)
+                cur_str = str(cur_val) if cur_val is not None else (str(pdefault) if pdefault is not None else "")
+                if cur_str in choices:
+                    ctrl.SetSelection(choices.index(cur_str))
+                elif choices:
+                    ctrl.SetSelection(0)
+                scroll_sizer.Add(ctrl, 0, wx.LEFT | wx.BOTTOM | wx.EXPAND, 6)
+
+            else:  # str
+                cur_str = str(cur_val) if cur_val is not None else (str(pdefault) if pdefault is not None else "")
+                ctrl = wx.TextCtrl(scroll, value=cur_str)
+                scroll_sizer.Add(ctrl, 0, wx.LEFT | wx.BOTTOM | wx.EXPAND, 6)
+
+            self._controls[pname] = ctrl
+
+        scroll.SetSizer(scroll_sizer)
+        scroll_sizer.FitInside(scroll)
+        scroll.SetMinSize((400, min(500, scroll_sizer.GetMinSize().height + 20)))
+
+        main_sizer.Add(scroll, 1, wx.EXPAND | wx.ALL, 8)
+        btn_sizer = self.CreateButtonSizer(wx.OK | wx.CANCEL)
+        main_sizer.Add(btn_sizer, 0, wx.ALIGN_RIGHT | wx.ALL, 8)
+        self.SetSizer(main_sizer)
+        main_sizer.Fit(self)
+        self.CenterOnParent()
+
+    def get_values(self):
+        """Return dict of {param_name: python_value} from controls."""
+        result = {}
+        for pinfo in self._params_info:
+            pname = pinfo["name"]
+            ptype = pinfo["type"]
+            ctrl = self._controls.get(pname)
+            if ctrl is None:
+                continue
+            if ptype == "bool":
+                result[pname] = ctrl.GetValue()
+            elif ptype == "int":
+                result[pname] = ctrl.GetValue()
+            elif ptype == "float":
+                result[pname] = ctrl.GetValue()
+            elif ptype == "choices":
+                idx = ctrl.GetSelection()
+                choices_raw = pinfo.get("choices_raw", [])
+                choices_str = pinfo.get("choices", [])
+                if 0 <= idx < len(choices_raw):
+                    result[pname] = choices_raw[idx]
+                elif 0 <= idx < len(choices_str):
+                    result[pname] = choices_str[idx]
+                else:
+                    result[pname] = ctrl.GetValue()
+            else:
+                result[pname] = ctrl.GetValue()
+        return result
+
+
 class scriptmanager_mainwindow(wx.Frame):
 
     SCRATCHPAD_REQUIRED_MENU_IDS = (104, 111, 112, 113, 114, 115)
@@ -1219,6 +1691,17 @@ class scriptmanager_mainwindow(wx.Frame):
             _("&delete Script\tctrl+d"),
             _("Delete the current script definition"),
         )
+        scripts.AppendSeparator()
+        scripts.Append(
+            229,
+            _("script &properties...\tAlt+Return"),
+            _("Edit the @script decorator of the current script"),
+        )
+        scripts.Append(
+            230,
+            _("edit method &call\tF4"),
+            _("Edit the parameters of the method call at the cursor"),
+        )
         edit.AppendSeparator()
         scripts.Append(220, _("&next error\talt+Down"), _("Go to next script error"))
         scripts.Append(
@@ -1261,6 +1744,8 @@ class scriptmanager_mainwindow(wx.Frame):
                     (wx.ACCEL_CTRL, ord("L"), 226),
                     (wx.ACCEL_CTRL, ord("D"), 227),
                     (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("L"), 228),
+                    (wx.ACCEL_ALT, wx.WXK_RETURN, 229),
+                    (wx.ACCEL_ALT, getattr(wx, "WXK_NUMPAD_ENTER", wx.WXK_RETURN), 229),
                 ]
             )
         )
@@ -1285,6 +1770,8 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnPreviousScriptDefinition, id=225)
         self.Bind(wx.EVT_MENU, self.OnShowScriptList, id=226)
         self.Bind(wx.EVT_MENU, self.OnDeleteCurrentScriptDefinition, id=227)
+        self.Bind(wx.EVT_MENU, self.OnScriptProperties, id=229)
+        self.Bind(wx.EVT_MENU, self.OnEditMethodCall, id=230)
         self.Bind(wx.EVT_MENU, self.OnAbout, id=901)
         self.Bind(wx.EVT_MENU, self.OnNextError, id=220)
         self.Bind(wx.EVT_MENU, self.OnPreviousError, id=221)
@@ -1304,6 +1791,11 @@ class scriptmanager_mainwindow(wx.Frame):
             size=(-1, -1),
             style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER | wx.TE_DONTWRAP,
         )
+        # Capture shortcuts while editor has focus (e.g. Alt+Enter / F4).
+        self.text.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+        self.text.Bind(wx.EVT_KEY_UP, self.OnTextCaretChanged)
+        self.text.Bind(wx.EVT_LEFT_UP, self.OnTextCaretChanged)
+        self.text.Bind(wx.EVT_SET_FOCUS, self.OnTextCaretChanged)
         self.text.Bind(wx.EVT_TEXT, self.OnTextChanged)
         self.last_name_saved = ""
         self._current_file_type = "empty"
@@ -1319,6 +1811,7 @@ class scriptmanager_mainwindow(wx.Frame):
         self._update_window_title()
         self.text.SelectNone()
         self.text.SetFocus()
+        self._update_caret_status()
         # Error-Liste Initialisierung
         self.errors = []
         self.current_error_index = -1
@@ -1460,6 +1953,14 @@ class scriptmanager_mainwindow(wx.Frame):
         item = menuBar.FindItemById(227)
         if item is not None:
             item.Enable(self._get_current_script_entry() is not None)
+        # script properties (229) – only when cursor is inside a script
+        item = menuBar.FindItemById(229)
+        if item is not None:
+            item.Enable(self._get_current_script_entry() is not None)
+        # edit method call (230) – only when editor has text
+        item = menuBar.FindItemById(230)
+        if item is not None:
+            item.Enable(has_text)
 
         # next error (220) / previous error (221)
         item = menuBar.FindItemById(220)
@@ -1789,7 +2290,7 @@ class scriptmanager_mainwindow(wx.Frame):
         
         if result == wx.ID_OK:
             # Script basierend auf Dialogeingaben generieren
-            script_content = self._generateScriptTemplate(
+            script_content = self._normalize_snippet_newlines(self._generateScriptTemplate(
                 dlg.script_name,
                 dlg.script_description,
                 dlg.script_gesture,
@@ -1800,13 +2301,12 @@ class scriptmanager_mainwindow(wx.Frame):
                 dlg.script_allowInSleepMode,
                 dlg.script_resumeSayAllMode,
                 dlg.script_speakOnDemand,
-            )
-            
-            # Leere Datei vorbereiten
-            # self.DoNewEmptyFile()
-            
-            # Script-Template einfügen
-            self.text.SetValue(script_content)
+            ))
+
+            insertion_point = self.text.GetInsertionPoint()
+            inserted_chars = self._ensure_import_line_at_top("from scriptHandler import script")
+            self.text.SetInsertionPoint(insertion_point + inserted_chars)
+            self.text.WriteText(script_content)
             
             # Text als modifiziert markieren
             self.text.MarkDirty()
@@ -1897,7 +2397,8 @@ def {clean_name}(self, gesture):
         caption = _("go to line number")
         prompt = _("line number:")
         message = _("enter the line number to go to")
-        value = self.text.PositionToXY(self.text.GetInsertionPoint())[1] + 1
+        _col, line = self._get_line_col_from_position(self.text.GetInsertionPoint())
+        value = line + 1
         max = self.text.GetNumberOfLines()
         ned = wx.NumberEntryDialog(
             parent=self,
@@ -2098,13 +2599,27 @@ def {clean_name}(self, gesture):
     def _ensure_import_line_at_top(self, import_line):
         if not import_line:
             return 0
+        import_line = import_line.replace("\r", "").replace("\n", "").strip()
+        if not import_line:
+            return 0
         if self._is_import_line_present(import_line):
             return 0
 
         current_text = self.text.GetValue()
         import_prefix = import_line.rstrip() + "\n"
         self.text.SetValue(import_prefix + current_text)
-        return len(import_prefix)
+        # Use actual control text length delta to stay correct across line-ending conversions.
+        return len(self.text.GetValue()) - len(current_text)
+
+    def _normalize_snippet_newlines(self, text):
+        """Normalize snippet line endings to match current editor content."""
+        if not text:
+            return text
+        normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+        editor_text = self.text.GetValue()
+        if "\r\n" in editor_text:
+            return normalized.replace("\n", "\r\n")
+        return normalized
 
     def OnInsertFunction(self, event):
         ifd = insertfunctionsdialog(
@@ -2118,16 +2633,31 @@ def {clean_name}(self, gesture):
             if ifd.ShowModal() != wx.ID_OK:
                 return
 
-            text_to_insert = ifd.functionstring
-            import_line = ifd.importstring
+            text_to_insert = self._normalize_snippet_newlines(ifd.functionstring or "")
+            import_line = (ifd.importstring or "").replace("\r", "").replace("\n", "").strip()
+            inserted_start = None
 
             if import_line and text_to_insert and text_to_insert != import_line:
                 insertion_point = self.text.GetInsertionPoint()
                 inserted_chars = self._ensure_import_line_at_top(import_line)
                 self.text.SetInsertionPoint(insertion_point + inserted_chars)
+                inserted_start = self.text.GetInsertionPoint()
                 self.text.WriteText(text_to_insert)
             elif text_to_insert:
+                inserted_start = self.text.GetInsertionPoint()
                 self.text.WriteText(text_to_insert)
+
+            if inserted_start is not None and text_to_insert and "(" in text_to_insert and ")" in text_to_insert:
+                # Keep caret on the inserted call (not after trailing newlines), so F4 works immediately.
+                call_open_offset = text_to_insert.find("(")
+                if call_open_offset >= 0:
+                    caret_pos = inserted_start + call_open_offset
+                else:
+                    caret_pos = inserted_start + len(text_to_insert)
+                self.text.SetInsertionPoint(caret_pos)
+                self.text.SetSelection(caret_pos, caret_pos)
+                self.text.SetFocus()
+                self._edit_method_call_at_cursor(announceErrors=False)
         finally:
             ifd.Destroy()
 
@@ -2535,17 +3065,58 @@ def {clean_name}(self, gesture):
                     column = m.start()
                     self.searchresults.append((x, column))
         self.statusbar.SetStatusText(_(" modified"), 1)
+        self._update_caret_status()
         self.modify = True
         self._update_window_title()
         event.Skip()
 
+    def OnTextCaretChanged(self, event):
+        self._update_caret_status()
+        event.Skip()
+
+    def _get_line_col_from_position(self, pos):
+        """Return (col, line) from TextCtrl position for wx variants with 2 or 3 return values."""
+        try:
+            xy = self.text.PositionToXY(pos)
+        except Exception:
+            return 0, 0
+
+        if not isinstance(xy, tuple):
+            return 0, 0
+
+        if len(xy) == 2:
+            col, line = xy
+            return int(col), int(line)
+
+        if len(xy) >= 3:
+            success, col, line = xy[:3]
+            if success is False:
+                return 0, 0
+            return int(col), int(line)
+
+        return 0, 0
+
+    def _update_caret_status(self):
+        try:
+            col, line = self._get_line_col_from_position(self.text.GetInsertionPoint())
+            self.statusbar.SetStatusText(_("Ln {line}, Col {col}").format(line=line + 1, col=col + 1), 3)
+        except Exception:
+            self.statusbar.SetStatusText("", 3)
+
     def OnKeyDown(self, event):
         keycode = event.GetKeyCode()
+        numpad_enter = getattr(wx, "WXK_NUMPAD_ENTER", -1)
+        if event.AltDown() and keycode in (wx.WXK_RETURN, numpad_enter):
+            self.OnScriptProperties(None)
+            return
         if keycode == wx.WXK_F2:
             if event.ShiftDown():
                 self.OnPreviousScriptDefinition(None)
             else:
                 self.OnNextScriptDefinition(None)
+            return
+        if keycode == wx.WXK_F4:
+            self.OnEditMethodCall(None)
             return
         if hasattr(self, "searchresults"):
             if len(self.searchresults) > 0:
@@ -2588,8 +3159,8 @@ def {clean_name}(self, gesture):
 
     def StatusBar(self):
         self.statusbar = self.CreateStatusBar()
-        self.statusbar.SetFieldsCount(3)
-        self.statusbar.SetStatusWidths([-5, -2, -1])
+        self.statusbar.SetFieldsCount(4)
+        self.statusbar.SetStatusWidths([-5, -2, -1, -2])
 
     def OnAbout(self, event):
         dlg = wx.MessageDialog(
@@ -2832,24 +3403,32 @@ def {clean_name}(self, gesture):
             module = None
 
         if module is not None:
-            for node in module.body:
-                if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    continue
-                if not str(getattr(node, "name", "")).startswith("script_"):
-                    continue
-                start_line = getattr(node, "lineno", 1) - 1
-                for decorator in getattr(node, "decorator_list", []):
-                    start_line = min(start_line, getattr(decorator, "lineno", start_line + 1) - 1)
-                end_line = getattr(node, "end_lineno", getattr(node, "lineno", 1)) - 1
-                entries.append(
-                    {
-                        "name": node.name,
-                        "defLine": max(0, getattr(node, "lineno", 1) - 1),
-                        "startLine": max(0, start_line),
-                        "endLine": max(0, end_line),
-                    }
-                )
+
+            # Extract both top-level functions and methods in classes
+            def process_body(body, parent_class=None):
+                """Recursively process body to find script_ definitions."""
+                for node in body:
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        if str(getattr(node, "name", "")).startswith("script_"):
+                            start_line = getattr(node, "lineno", 1) - 1
+                            for decorator in getattr(node, "decorator_list", []):
+                                start_line = min(start_line, getattr(decorator, "lineno", start_line + 1) - 1)
+                            end_line = getattr(node, "end_lineno", getattr(node, "lineno", 1)) - 1
+                            entries.append(
+                                {
+                                    "name": node.name,
+                                    "defLine": max(0, getattr(node, "lineno", 1) - 1),
+                                    "startLine": max(0, start_line),
+                                    "endLine": max(0, end_line),
+                                }
+                            )
+                    elif isinstance(node, ast.ClassDef):
+                        # Also process class methods
+                        process_body(node.body, parent_class=node.name)
+            
+            process_body(module.body)
         else:
+            # Fallback regex approach - also look for methods in classes
             pattern = re.compile(r"^\s*def\s+(script_[a-zA-Z0-9_]*)\s*\(")
             raw_lines = content.splitlines()
             def_lines = []
@@ -2888,7 +3467,7 @@ def {clean_name}(self, gesture):
         if not entries:
             return None
         try:
-            _x, current_line = self.text.PositionToXY(self.text.GetInsertionPoint())
+            _col, current_line = self._get_line_col_from_position(self.text.GetInsertionPoint())
         except Exception:
             current_line = 0
         for entry in entries:
@@ -2943,6 +3522,476 @@ def {clean_name}(self, gesture):
         self.statusbar.SetStatusText(msg, 1)
         ui.message(msg)
 
+    def OnScriptProperties(self, event):
+        """Opens properties dialog for the @script decorator of the current script."""
+        entry = self._get_current_script_entry()
+        if entry is None:
+            wx.Bell()
+            msg = _("Cursor is not inside a script definition")
+            self.statusbar.SetStatusText(msg, 1)
+            ui.message(msg)
+            return
+
+        data = self._parse_decorator_values(entry)
+        dlg = newscriptdialog(self, -1, _("Script properties"))
+        dlg.populate_from_data(data)
+        result = dlg.ShowModal()
+
+        if result == wx.ID_OK:
+            content = self.text.GetValue()
+            raw_lines = content.splitlines()
+            def_line_idx = entry["defLine"]
+            indent = ""
+            if def_line_idx < len(raw_lines):
+                def_text = raw_lines[def_line_idx]
+                stripped = def_text.lstrip()
+                indent = def_text[: len(def_text) - len(stripped)]
+            new_decorator = self._generate_decorator_only(
+                dlg.script_name,
+                dlg.script_description,
+                dlg.script_gesture,
+                dlg.script_category,
+                dlg.script_gestures,
+                dlg.script_canPropagate,
+                dlg.script_bypassInputHelp,
+                dlg.script_allowInSleepMode,
+                dlg.script_resumeSayAllMode,
+                dlg.script_speakOnDemand,
+                indent=indent,
+            )
+            self._replace_script_decorator(entry, new_decorator)
+        dlg.Destroy()
+
+    def _parse_decorator_values(self, entry):
+        """Parse @script decorator arguments from the source. Returns dict."""
+        content = self.text.GetValue()
+        try:
+            module = ast.parse(content)
+        except Exception:
+            return {}
+        entry_def_line = int(entry.get("defLine", -1))
+        for node in ast.walk(module):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.name != entry["name"]:
+                continue
+            node_def_line = int(getattr(node, "lineno", 1) - 1)
+            if entry_def_line >= 0 and node_def_line != entry_def_line:
+                continue
+            for dec in node.decorator_list:
+                if not isinstance(dec, ast.Call):
+                    continue
+                func = dec.func
+                is_script = (isinstance(func, ast.Name) and func.id == "script") or (
+                    isinstance(func, ast.Attribute) and func.attr == "script"
+                )
+                if not is_script:
+                    continue
+                result = {}
+                for kw in dec.keywords:
+                    key = kw.arg
+                    val = kw.value
+                    if key == "description":
+                        result["description"] = _ast_string_value(val)
+                    elif key == "category":
+                        result["category"] = _ast_string_value(val)
+                    elif key == "gesture":
+                        result["gesture"] = _ast_string_value(val)
+                    elif key == "gestures":
+                        if isinstance(val, ast.List):
+                            result["gestures"] = [_ast_string_value(elt) for elt in val.elts]
+                        else:
+                            result["gestures"] = []
+                    elif key == "canPropagate":
+                        result["canPropagate"] = _ast_bool_value(val)
+                    elif key == "bypassInputHelp":
+                        result["bypassInputHelp"] = _ast_bool_value(val)
+                    elif key == "allowInSleepMode":
+                        result["allowInSleepMode"] = _ast_bool_value(val)
+                    elif key == "resumeSayAllMode":
+                        result["resumeSayAllMode"] = _ast_attribute_value(val)
+                    elif key == "speakOnDemand":
+                        result["speakOnDemand"] = _ast_bool_value(val)
+                raw_name = entry["name"]
+                if raw_name.startswith("script_"):
+                    raw_name = raw_name[len("script_"):]
+                result["name"] = raw_name
+                return result
+        raw_name = entry["name"]
+        if raw_name.startswith("script_"):
+            raw_name = raw_name[len("script_"):]
+        return {"name": raw_name}
+
+    def _generate_decorator_only(
+        self,
+        name,
+        description,
+        gesture,
+        category,
+        gestures,
+        canPropagate,
+        bypassInputHelp,
+        allowInSleepMode,
+        resumeSayAllMode,
+        speakOnDemand,
+        indent="",
+    ):
+        """Generate @script(...) decorator text without the def line."""
+        args = []
+        if chr(10) in description:
+            safe_desc = description.replace('"""', '\"\"\"')
+            args.append(f'description=_("""{safe_desc}""")')
+        else:
+            safe_desc = description.replace('"', '\"')
+            args.append(f'description=_("{safe_desc}")')
+        if category:
+            safe_cat = category.replace('"', '\"')
+            args.append(f'category=_("{safe_cat}")')
+        normalized = [g for g in (gestures or []) if g]
+        if len(normalized) > 1:
+            entries = ", ".join(['"' + g.replace('"', '\"') + '"' for g in normalized])
+            args.append(f"gestures=[{entries}]")
+        elif len(normalized) == 1:
+            g = normalized[0].replace('"', '\"')
+            args.append(f'gesture="{g}"')
+        elif gesture:
+            g = gesture.replace('"', '\"')
+            args.append(f'gesture="{g}"')
+        if canPropagate:
+            args.append("canPropagate=True")
+        if bypassInputHelp:
+            args.append("bypassInputHelp=True")
+        if allowInSleepMode:
+            args.append("allowInSleepMode=True")
+        if resumeSayAllMode:
+            args.append(f"resumeSayAllMode={resumeSayAllMode}")
+        if speakOnDemand:
+            args.append("speakOnDemand=True")
+        if not args:
+            args.append('description=_("")')
+        inner = indent + "    "
+        nl = chr(10)
+        args_str = ("," + nl + inner).join(args)
+        return f"{indent}@script({nl}{inner}{args_str}{nl}{indent})"
+
+    def _replace_script_decorator(self, entry, new_decorator):
+        """Replace the @script decorator lines of a script entry."""
+        start_line = entry["startLine"]
+        def_line = entry["defLine"]
+        decorator_start_pos = self.text.XYToPosition(0, start_line)
+        decorator_end_pos = self.text.XYToPosition(0, def_line)
+        if start_line < def_line:
+            self.text.Remove(decorator_start_pos, decorator_end_pos)
+        self.text.SetInsertionPoint(decorator_start_pos)
+        self.text.WriteText(new_decorator + "\n")
+        self.modify = True
+        self._update_window_title()
+        msg = _("script decorator updated")
+        self.statusbar.SetStatusText(msg, 1)
+        ui.message(msg)
+
+    def OnEditMethodCall(self, event):
+        """Edit the parameters of the method call at the cursor position."""
+        self._edit_method_call_at_cursor(announceErrors=True)
+
+    def _edit_method_call_at_cursor(self, announceErrors=True):
+        """Edit parameters for the call at the current cursor position."""
+        call_node, func_name = self._find_call_at_cursor()
+        if call_node is None:
+            if announceErrors:
+                wx.Bell()
+                msg = _("No method call found at cursor position")
+                self.statusbar.SetStatusText(msg, 1)
+                ui.message(msg)
+            return False
+        if func_name is None:
+            if announceErrors:
+                wx.Bell()
+                msg = _("Could not determine method name")
+                self.statusbar.SetStatusText(msg, 1)
+                ui.message(msg)
+            return False
+        callable_obj = _resolve_callable_by_name(func_name, self.text.GetValue(), __name__)
+        if callable_obj is None:
+            if announceErrors:
+                wx.Bell()
+                msg = _("Could not resolve method: {name}").format(name=func_name)
+                self.statusbar.SetStatusText(msg, 1)
+                ui.message(msg)
+            return False
+        try:
+            sig = inspect.signature(callable_obj)
+        except (ValueError, TypeError):
+            if announceErrors:
+                wx.Bell()
+                msg = _("Could not get signature for: {name}").format(name=func_name)
+                self.statusbar.SetStatusText(msg, 1)
+                ui.message(msg)
+            return False
+        params_info = []
+        for pname, param in sig.parameters.items():
+            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+                continue
+            if pname in ("self", "cls"):
+                continue
+            pinfo = _classify_param_for_dialog(param)
+            pinfo["name"] = pname
+            params_info.append(pinfo)
+        if not params_info:
+            if announceErrors:
+                wx.Bell()
+                msg = _("Method {name} has no editable parameters").format(name=func_name)
+                self.statusbar.SetStatusText(msg, 1)
+                ui.message(msg)
+            return False
+        current_values = self._parse_call_arguments(call_node, params_info)
+        dlg = MethodCallEditDialog(self, func_name, params_info, current_values)
+        result = dlg.ShowModal()
+        if result == wx.ID_OK:
+            new_values = dlg.get_values()
+            new_call_text = self._build_method_call_text(call_node, params_info, new_values)
+            self._replace_call_in_text(call_node, new_call_text)
+        dlg.Destroy()
+        return True
+
+    def _find_call_at_cursor(self):
+        """Find the innermost Call AST node at the current cursor position."""
+        content = self.text.GetValue()
+        pos = self.text.GetInsertionPoint()
+        col, line = self._get_line_col_from_position(pos)
+        cursor_line_1 = line + 1  # 1-based (AST)
+        cursor_col = col
+        
+        try:
+            tree = ast.parse(content)
+        except SyntaxError:
+            return self._find_text_call_at_cursor(content, pos)
+        
+        best_func_call = None
+        best_func_size = None
+        best_range_call = None
+        best_range_size = None
+        
+        # Also track calls where the cursor is in the function part (name/attribute)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            
+            n_start_line = getattr(node, "lineno", None)
+            n_end_line = getattr(node, "end_lineno", None)
+            n_start_col = getattr(node, "col_offset", 0)
+            n_end_col = getattr(node, "end_col_offset", None)
+            
+            if n_start_line is None or n_end_line is None:
+                continue
+            
+            in_range = False
+            in_func = False
+            
+            # Check if cursor is within the Call node's full range
+            if n_start_line < cursor_line_1 < n_end_line:
+                in_range = True
+            elif n_start_line == n_end_line == cursor_line_1:
+                if n_end_col is not None:
+                    in_range = n_start_col <= cursor_col <= n_end_col
+                else:
+                    in_range = cursor_col >= n_start_col
+            elif n_start_line == cursor_line_1 < n_end_line:
+                in_range = cursor_col >= n_start_col
+            elif n_start_line < cursor_line_1 == n_end_line:
+                in_range = n_end_col is None or cursor_col <= n_end_col
+            
+            # If not in call range, check if cursor is in the func node (name/attribute part)
+            if isinstance(node.func, (ast.Name, ast.Attribute)):
+                func_start_line = getattr(node.func, "lineno", None)
+                func_end_line = getattr(node.func, "end_lineno", None)
+                func_start_col = getattr(node.func, "col_offset", 0)
+                func_end_col = getattr(node.func, "end_col_offset", None)
+                
+                if func_start_line is not None and func_end_line is not None:
+                    # Check if cursor is in the function name/attribute part
+                    if func_start_line == cursor_line_1 == func_end_line:
+                        if func_end_col is not None:
+                            in_func = func_start_col <= cursor_col <= func_end_col
+                        else:
+                            in_func = cursor_col >= func_start_col
+            
+            if not (in_range or in_func):
+                continue
+            
+            size = (n_end_line - n_start_line) * 10000 + (n_end_col or 0) - n_start_col
+            if in_func:
+                if best_func_size is None or size < best_func_size:
+                    best_func_call = node
+                    best_func_size = size
+            if best_range_size is None or size > best_range_size:
+                best_range_call = node
+                best_range_size = size
+
+        selected_call = best_func_call if best_func_call is not None else best_range_call
+        if selected_call is None:
+            return self._find_text_call_at_cursor(content, pos)
+
+        func_name = _get_call_func_name(selected_call.func)
+        return selected_call, func_name
+
+    def _find_text_call_at_cursor(self, content, cursor_pos):
+        """Fallback call detection for syntactically incomplete placeholder calls."""
+        if not content:
+            return None, None
+
+        n = len(content)
+        if n <= 0:
+            return None, None
+        cursor_pos = max(0, min(int(cursor_pos), n))
+
+        stack = []
+        call_ranges = []
+        for idx, ch in enumerate(content):
+            if ch == "(":
+                stack.append(idx)
+            elif ch == ")" and stack:
+                open_idx = stack.pop()
+                call_ranges.append((open_idx, idx))
+
+        if not call_ranges:
+            return None, None
+
+        best_func_call = None
+        best_func_size = None
+        best_range_call = None
+        best_range_size = None
+
+        for open_idx, close_idx in call_ranges:
+            i = open_idx - 1
+            while i >= 0 and content[i].isspace():
+                i -= 1
+            if i < 0:
+                continue
+
+            func_end = i + 1
+            while i >= 0 and (content[i].isalnum() or content[i] in "._"):
+                i -= 1
+            func_start = i + 1
+            if func_start >= func_end:
+                continue
+
+            func_text = content[func_start:func_end].strip()
+            if not re.match(r"^[A-Za-z_][A-Za-z0-9_\.]*$", func_text):
+                continue
+
+            call_start = func_start
+            call_end = close_idx + 1
+            in_range = call_start <= cursor_pos <= call_end
+            in_func = func_start <= cursor_pos <= func_end
+            if not (in_range or in_func):
+                continue
+
+            call_ref = _TextCallRef(
+                start_pos=call_start,
+                end_pos=call_end,
+                args_start=open_idx + 1,
+                args_end=close_idx,
+                func_text=func_text,
+            )
+            size = call_end - call_start
+            if in_func:
+                if best_func_size is None or size < best_func_size:
+                    best_func_call = call_ref
+                    best_func_size = size
+            if best_range_size is None or size > best_range_size:
+                best_range_call = call_ref
+                best_range_size = size
+
+        selected_call = best_func_call if best_func_call is not None else best_range_call
+        if selected_call is None:
+            return None, None
+        return selected_call, selected_call.func_text
+
+    def _parse_call_arguments(self, call_node, params_info):
+        """Extract current arguments of a Call node as dict {param_name: value}."""
+        source = self.text.GetValue()
+        result = {}
+        if isinstance(call_node, _TextCallRef):
+            args_text = source[call_node.args_start:call_node.args_end]
+            if not args_text.strip():
+                return result
+            try:
+                parsed = ast.parse(f"_f({args_text})", mode="eval")
+                call_expr = parsed.body
+                if not isinstance(call_expr, ast.Call):
+                    return result
+            except Exception:
+                return result
+            for i, arg in enumerate(call_expr.args):
+                if i < len(params_info):
+                    pname = params_info[i]["name"]
+                    result[pname] = _ast_value_to_python(arg, args_text)
+            for kw in call_expr.keywords:
+                if kw.arg is not None:
+                    result[kw.arg] = _ast_value_to_python(kw.value, args_text)
+            return result
+
+        for i, arg in enumerate(call_node.args):
+            if i < len(params_info):
+                pname = params_info[i]["name"]
+                result[pname] = _ast_value_to_python(arg, source)
+        for kw in call_node.keywords:
+            if kw.arg is not None:
+                result[kw.arg] = _ast_value_to_python(kw.value, source)
+        return result
+
+    def _build_method_call_text(self, call_node, params_info, new_values):
+        """Build new method call text from edited parameter values.
+
+        Only params that differ from their defaults are included.
+        """
+        source = self.text.GetValue()
+        if isinstance(call_node, _TextCallRef):
+            func_text = call_node.func_text or "unknown"
+        else:
+            try:
+                func_text = ast.get_source_segment(source, call_node.func) or _get_call_func_name(call_node.func) or "unknown"
+            except Exception:
+                func_text = _get_call_func_name(call_node.func) or "unknown"
+        args_parts = []
+        for pinfo in params_info:
+            pname = pinfo["name"]
+            pdefault = pinfo.get("default")
+            ptype = pinfo["type"]
+            val = new_values.get(pname)
+            if val is None and pdefault is None:
+                continue
+            if val == pdefault:
+                continue
+            if ptype == "choices" and (val is None or val == "") and pdefault is None:
+                continue
+            val_str = _python_value_to_source(ptype, val, pinfo)
+            if val_str is not None:
+                args_parts.append(f"{pname}={val_str}")
+        return f"{func_text}({', '.join(args_parts)})"
+
+    def _replace_call_in_text(self, call_node, new_call_text):
+        """Replace a method call in the editor with new_call_text."""
+        if isinstance(call_node, _TextCallRef):
+            start_pos = call_node.start_pos
+            end_pos = call_node.end_pos
+        else:
+            start_line = call_node.lineno - 1
+            start_col = call_node.col_offset
+            end_line = call_node.end_lineno - 1
+            end_col = call_node.end_col_offset
+            start_pos = self.text.XYToPosition(start_col, start_line)
+            end_pos = self.text.XYToPosition(end_col, end_line)
+        self.text.Remove(start_pos, end_pos)
+        self.text.SetInsertionPoint(start_pos)
+        self.text.WriteText(new_call_text)
+        self.modify = True
+        self._update_window_title()
+        msg = _("method call updated")
+        self.statusbar.SetStatusText(msg, 1)
+        ui.message(msg)
+
     def _get_script_definition_lines(self):
         """Liefert alle Zeilenindizes mit Scriptdefinitionen."""
         return [int(entry.get("defLine", entry["startLine"])) for entry in self._get_script_entries()]
@@ -2957,7 +4006,7 @@ def {clean_name}(self, gesture):
             ui.message(msg)
             return
 
-        current_line = self.text.PositionToXY(self.text.GetInsertionPoint())[1]
+        _col, current_line = self._get_line_col_from_position(self.text.GetInsertionPoint())
         wrapped = False
 
         if forward:
