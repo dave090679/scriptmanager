@@ -58,6 +58,7 @@ SCRIPTMANAGER_CONFIG_SPEC = {
 	"includeBlacklistedModules": "boolean(default=False)",
 	"translateDocstrings": "boolean(default=False)",
 	"showAddonFolderHint": "boolean(default=True)",
+	"jumpMode": "string(default='scripts')",
 }
 
 # Global error collector for the current script
@@ -219,6 +220,25 @@ def get_show_addon_folder_hint():
 
 def set_show_addon_folder_hint(enabled):
 	_get_scriptmanager_conf()["showAddonFolderHint"] = bool(enabled)
+
+
+_VALID_JUMP_MODES = ("scripts", "functionsOnly", "allDefinitions")
+
+
+def get_jump_mode():
+	try:
+		value = _get_scriptmanager_conf().get("jumpMode", "scripts")
+		if value not in _VALID_JUMP_MODES:
+			return "scripts"
+		return value
+	except Exception:
+		return "scripts"
+
+
+def set_jump_mode(mode):
+	if mode not in _VALID_JUMP_MODES:
+		mode = "scripts"
+	_get_scriptmanager_conf()["jumpMode"] = mode
 
 
 def is_scratchpad_enabled():

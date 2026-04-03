@@ -2,10 +2,11 @@ import datetime
 import sys
 import os
 import shutil
-import threading
 import time
 import ast
 import importlib
+import typing
+import math
 impPath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(impPath)
 import sm_backend
@@ -19,8 +20,8 @@ import re
 from gui import guiHelper
 addonHandler.initTranslation()
 
-import typing
-import inspect
+# Fallback for analysis/runtime contexts where initTranslation does not expose _.
+_ = globals().get("_", lambda text: text)
 
 
 class _TextCallRef(object):
@@ -224,9 +225,44 @@ def _classify_param_for_dialog(param):
         "choices_raw": [],
         "min":-2 ** 16,
         "max": 2 ** 16,
+        "required": (param.default == inspect.Parameter.empty),
+        "pattern": None,
+        "minLength": None,
+        "maxLength": None,
+        "allowEmpty": True,
+        "raw_hint": None,
     }
 
     ann = annotation
+    origin = typing.get_origin(ann)
+    args = typing.get_args(ann)
+
+    # Support typing.Annotated metadata for constraints.
+    if origin is typing.Annotated and args:
+        ann = args[0]
+        origin = typing.get_origin(ann)
+        args = typing.get_args(ann)
+        for meta in args[1:]:
+            if isinstance(meta, dict):
+                if "required" in meta:
+                    pinfo["required"] = bool(meta.get("required"))
+                if "min" in meta:
+                    pinfo["min"] = meta.get("min")
+                if "max" in meta:
+                    pinfo["max"] = meta.get("max")
+                if "inc" in meta:
+                    pinfo["inc"] = meta.get("inc")
+                if "pattern" in meta:
+                    pinfo["pattern"] = str(meta.get("pattern") or "")
+                if "minLength" in meta:
+                    pinfo["minLength"] = meta.get("minLength")
+                if "maxLength" in meta:
+                    pinfo["maxLength"] = meta.get("maxLength")
+                if "allowEmpty" in meta:
+                    pinfo["allowEmpty"] = bool(meta.get("allowEmpty"))
+            elif isinstance(meta, str) and meta.startswith("regex:"):
+                pinfo["pattern"] = meta[6:]
+
     if ann is inspect.Parameter.empty:
         if isinstance(default, bool):
             pinfo["type"] = "bool"
@@ -236,15 +272,15 @@ def _classify_param_for_dialog(param):
             pinfo["type"] = "float"
         return pinfo
 
-    origin = getattr(ann, "__origin__", None)
-    args = getattr(ann, "__args__", ())
+    origin = typing.get_origin(ann)
+    args = typing.get_args(ann)
 
     if origin is typing.Union:
         non_none = [a for a in args if a is not type(None)]
         if len(non_none) == 1:
             ann = non_none[0]
-            origin = getattr(ann, "__origin__", None)
-            args = getattr(ann, "__args__", ())
+            origin = typing.get_origin(ann)
+            args = typing.get_args(ann)
 
     if origin is typing.Literal:
         choices_raw = list(args)
@@ -273,6 +309,25 @@ def _classify_param_for_dialog(param):
         except Exception:
             pass
         pinfo["type"] = "int"
+    else:
+        # Complex type: list, dict, tuple, set, Any, or unknown → raw Python expression
+        pinfo["type"] = "raw"
+        if origin in (list, tuple, set):
+            pinfo["raw_hint"] = origin.__name__
+        elif origin is dict:
+            pinfo["raw_hint"] = "dict"
+        elif ann is list or ann == "list":
+            pinfo["raw_hint"] = "list"
+        elif ann is dict or ann == "dict":
+            pinfo["raw_hint"] = "dict"
+        elif ann is tuple or ann == "tuple":
+            pinfo["raw_hint"] = "tuple"
+        elif ann is set or ann == "set":
+            pinfo["raw_hint"] = "set"
+        elif hasattr(ann, "__name__"):
+            pinfo["raw_hint"] = ann.__name__
+        else:
+            pinfo["raw_hint"] = str(ann)
     return pinfo
 
 
@@ -302,6 +357,9 @@ def _python_value_to_source(ptype, val, pinfo):
                     return repr(raw)
                 return str(raw)
         return repr(val) if isinstance(val, str) else str(val)
+    if ptype == "raw":
+        # The value is already a verbatim Python expression string
+        return str(val)
     # str
     return repr(str(val))
 
@@ -309,8 +367,8 @@ def _python_value_to_source(ptype, val, pinfo):
 class insertfunctionsdialog(wx.Dialog):
     functionstring = ""
 
-    def __init__(self, parent, id, title, includeBlacklistedModules=False, translateDocstrings=False):
-        super(insertfunctionsdialog, self).__init__(parent, id, title)
+    def __init__(self, parent, dialogId, title, includeBlacklistedModules=False, translateDocstrings=False):
+        super(insertfunctionsdialog, self).__init__(parent, dialogId, title)
         self.tree_initialized = False
         self.dialog_closed = False
         self.importstring = ""
@@ -396,7 +454,7 @@ class insertfunctionsdialog(wx.Dialog):
                         if inspect.isfunction(obj) or inspect.isclass(obj):
                             has_items = True
                             break
-                    except:
+                    except Exception:
                         pass
                 
                 if has_items:
@@ -411,7 +469,7 @@ class insertfunctionsdialog(wx.Dialog):
                     )
                     self.tree.SetItemData(placeholder, "placeholder")
                     
-            except:
+            except Exception:
                 pass
         
         # Mark root as loaded
@@ -457,9 +515,9 @@ class insertfunctionsdialog(wx.Dialog):
                                 parent=classnode, text="[Loading...]"
                             )
                             self.tree.SetItemData(placeholder, "placeholder")
-                    except:
+                    except Exception:
                         pass
-            except:
+            except Exception:
                 pass
         
         # Mark module as loaded
@@ -500,9 +558,9 @@ class insertfunctionsdialog(wx.Dialog):
                         self.tree.AppendItem(
                             parent=class_node, text=ci, data="property"
                         )
-                except:
+                except Exception:
                     pass
-        except:
+        except Exception:
             pass
         
         # Mark class as loaded
@@ -616,7 +674,7 @@ class insertfunctionsdialog(wx.Dialog):
 
     def _build_signatures(self, target, display_name):
         sig = inspect.signature(target)
-        required_params = []
+        required_call_params = []
         all_params = []
 
         for param_name, param in sig.parameters.items():
@@ -639,12 +697,13 @@ class insertfunctionsdialog(wx.Dialog):
             )
 
             if not is_optional:
-                required_params.append(parameter_text)
+                # Keep inserted code as valid call syntax (no type prefixes like "str message").
+                required_call_params.append(name)
                 all_params.append(parameter_text)
             else:
                 all_params.append(f"[{parameter_text}]")
 
-        required_call = f"{display_name}({', '.join(required_params)})"
+        required_call = f"{display_name}({', '.join(required_call_params)})"
         syntax_line = f"Syntax: {display_name}({', '.join(all_params)})"
         return required_call, syntax_line
 
@@ -668,7 +727,7 @@ class insertfunctionsdialog(wx.Dialog):
                 func, f"{module_name}.{function_name}"
             )
             return required_call
-        except:
+        except Exception:
             return f"{module_name}.{function_name}()"
 
     def _format_function_syntax(self, module_name, function_name):
@@ -679,7 +738,7 @@ class insertfunctionsdialog(wx.Dialog):
             func = getattr(mod, function_name)
             _, syntax_line = self._build_signatures(func, function_name)
             return syntax_line
-        except:
+        except Exception:
             return f"Syntax: {function_name}()"
 
     def _format_method_call(self, module_name, class_name, method_name):
@@ -698,7 +757,7 @@ class insertfunctionsdialog(wx.Dialog):
                 method, f"{class_name}.{method_name}"
             )
             return required_call
-        except:
+        except Exception:
             return f"{class_name}.{method_name}()"
 
     def _format_method_syntax(self, module_name, class_name, method_name):
@@ -714,7 +773,7 @@ class insertfunctionsdialog(wx.Dialog):
             method = getattr(cls, method_name)
             _, syntax_line = self._build_signatures(method, method_name)
             return syntax_line
-        except:
+        except Exception:
             return f"Syntax: {method_name}()"
 
     def on_selection_changed(self, event):
@@ -726,7 +785,7 @@ class insertfunctionsdialog(wx.Dialog):
         try:
             if not self.tree or not self.help_text:
                 return
-        except:
+        except Exception:
             return
 
         item = self.tree.GetSelection()
@@ -844,8 +903,8 @@ class newscriptdialog(wx.Dialog):
         _("Document formatting"),
     ]
     
-    def __init__(self, parent, id, title):
-        super(newscriptdialog, self).__init__(parent, id, title, style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+    def __init__(self, parent, dialogId, title):
+        super(newscriptdialog, self).__init__(parent, dialogId, title, style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         
         self.script_name = ""
         self.script_description = ""
@@ -1264,10 +1323,10 @@ class addonmanifestdialog(wx.Dialog):
 
     UPDATE_CHANNEL_CHOICES = ["", "dev"]
 
-    def __init__(self, parent, id, title, defaults=None):
+    def __init__(self, parent, dialogId, title, defaults=None):
         super(addonmanifestdialog, self).__init__(
             parent,
-            id,
+            dialogId,
             title,
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
@@ -1504,8 +1563,9 @@ class MethodCallEditDialog(wx.Dialog):
         super().__init__(parent, title=_("Edit method call: {name}").format(name=call_name))
         self._params_info = params_info
         self._controls = {}
+        self._validated_values = None
         main_sizer = wx.BoxSizer(wx.VERTICAL)
-        helper = guiHelper.BoxSizerHelper(self, sizer=main_sizer)
+        guiHelper.BoxSizerHelper(self, sizer=main_sizer)
 
         scroll = wx.ScrolledWindow(self, style=wx.VSCROLL)
         scroll.SetScrollRate(0, 20)
@@ -1517,7 +1577,8 @@ class MethodCallEditDialog(wx.Dialog):
             pdefault = pinfo.get("default")
             cur_val = current_values.get(pname, pdefault)
 
-            label = wx.StaticText(scroll, label=pname + ":")
+            label_text = pname + (" *:" if pinfo.get("required") else ":")
+            label = wx.StaticText(scroll, label=label_text)
             scroll_sizer.Add(label, 0, wx.TOP | wx.LEFT, 6)
 
             if ptype == "bool":
@@ -1555,6 +1616,19 @@ class MethodCallEditDialog(wx.Dialog):
                     ctrl.SetSelection(0)
                 scroll_sizer.Add(ctrl, 0, wx.LEFT | wx.BOTTOM | wx.EXPAND, 6)
 
+            elif ptype == "raw":
+                raw_hint = pinfo.get("raw_hint") or ""
+                cur_str = str(cur_val) if cur_val is not None else (str(pdefault) if pdefault is not None else "")
+                ctrl = wx.TextCtrl(
+                    scroll,
+                    value=cur_str,
+                    style=wx.TE_MULTILINE | wx.TE_DONTWRAP,
+                )
+                ctrl.SetMinSize((-1, ctrl.GetCharHeight() * 4))
+                if raw_hint:
+                    ctrl.SetToolTip(_("{hint} (Python expression)").format(hint=raw_hint))
+                scroll_sizer.Add(ctrl, 0, wx.LEFT | wx.BOTTOM | wx.EXPAND, 6)
+
             else:  # str
                 cur_str = str(cur_val) if cur_val is not None else (str(pdefault) if pdefault is not None else "")
                 ctrl = wx.TextCtrl(scroll, value=cur_str)
@@ -1572,9 +1646,32 @@ class MethodCallEditDialog(wx.Dialog):
         self.SetSizer(main_sizer)
         main_sizer.Fit(self)
         self.CenterOnParent()
+        self.Bind(wx.EVT_BUTTON, self._on_ok, id=wx.ID_OK)
+
+    def _on_ok(self, event):
+        ok, values, errors = self.validate_values()
+        if ok:
+            self._validated_values = values
+            self.EndModal(wx.ID_OK)
+            return
+
+        wx.Bell()
+        msg = _("Please correct the following parameter errors:\n{errors}").format(
+            errors="\n".join(errors)
+        )
+        wx.MessageBox(msg, _("Validation error"), wx.OK | wx.ICON_ERROR, self)
+
+        if errors:
+            first_name = errors[0].split(":", 1)[0]
+            ctrl = self._controls.get(first_name)
+            if ctrl is not None:
+                ctrl.SetFocus()
 
     def get_values(self):
         """Return dict of {param_name: python_value} from controls."""
+        if self._validated_values is not None:
+            return dict(self._validated_values)
+
         result = {}
         for pinfo in self._params_info:
             pname = pinfo["name"]
@@ -1598,9 +1695,101 @@ class MethodCallEditDialog(wx.Dialog):
                     result[pname] = choices_str[idx]
                 else:
                     result[pname] = ctrl.GetValue()
+            elif ptype == "raw":
+                result[pname] = ctrl.GetValue().strip()
             else:
                 result[pname] = ctrl.GetValue()
         return result
+
+    def validate_values(self):
+        """Validate current dialog values and return (ok, values, errors)."""
+        values = self.get_values()
+        errors = []
+
+        for pinfo in self._params_info:
+            pname = pinfo["name"]
+            ptype = pinfo["type"]
+            value = values.get(pname)
+
+            if pinfo.get("required"):
+                if ptype == "str" and str(value or "").strip() == "":
+                    errors.append(_("{name}: value is required").format(name=pname))
+                    continue
+
+            if ptype == "int":
+                try:
+                    iv = int(value)
+                except (TypeError, ValueError):
+                    errors.append(_("{name}: invalid integer value").format(name=pname))
+                    continue
+                mn = pinfo.get("min")
+                mx = pinfo.get("max")
+                if mn is not None and iv < int(mn):
+                    errors.append(_("{name}: must be >= {min}").format(name=pname, min=mn))
+                if mx is not None and iv > int(mx):
+                    errors.append(_("{name}: must be <= {max}").format(name=pname, max=mx))
+
+            elif ptype == "float":
+                try:
+                    fv = float(value)
+                except (TypeError, ValueError):
+                    errors.append(_("{name}: invalid floating-point value").format(name=pname))
+                    continue
+                if not math.isfinite(fv):
+                    errors.append(_("{name}: value must be finite").format(name=pname))
+                    continue
+                mn = pinfo.get("min")
+                mx = pinfo.get("max")
+                if mn is not None and fv < float(mn):
+                    errors.append(_("{name}: must be >= {min}").format(name=pname, min=mn))
+                if mx is not None and fv > float(mx):
+                    errors.append(_("{name}: must be <= {max}").format(name=pname, max=mx))
+
+            elif ptype == "str":
+                sv = str(value or "")
+                if not pinfo.get("allowEmpty", True) and sv.strip() == "":
+                    errors.append(_("{name}: value must not be empty").format(name=pname))
+                    continue
+
+                min_len = pinfo.get("minLength")
+                max_len = pinfo.get("maxLength")
+                if min_len is not None and len(sv) < int(min_len):
+                    errors.append(_("{name}: minimum length is {length}").format(name=pname, length=min_len))
+                if max_len is not None and len(sv) > int(max_len):
+                    errors.append(_("{name}: maximum length is {length}").format(name=pname, length=max_len))
+
+                pattern = pinfo.get("pattern")
+                if pattern and sv:
+                    try:
+                        if re.fullmatch(pattern, sv) is None:
+                            errors.append(_("{name}: value does not match required pattern").format(name=pname))
+                    except re.error:
+                        errors.append(_("{name}: invalid validator pattern configuration").format(name=pname))
+
+            elif ptype == "choices":
+                choices_raw = pinfo.get("choices_raw", [])
+                choices_str = pinfo.get("choices", [])
+                if pinfo.get("required") and not choices_raw and str(value or "").strip() == "":
+                    errors.append(_("{name}: value is required").format(name=pname))
+                elif choices_raw and value not in choices_raw and str(value) not in choices_str:
+                    errors.append(_("{name}: invalid selection").format(name=pname))
+
+            elif ptype == "raw":
+                sv = str(value or "").strip()
+                if pinfo.get("required") and sv == "":
+                    errors.append(_("{name}: value is required").format(name=pname))
+                    continue
+                if sv:
+                    try:
+                        ast.parse(sv, mode="eval")
+                    except SyntaxError as exc:
+                        errors.append(
+                            _("{name}: invalid Python expression ({detail})").format(
+                                name=pname, detail=str(exc.msg)
+                            )
+                        )
+
+        return len(errors) == 0, values, errors
 
 
 class scriptmanager_mainwindow(wx.Frame):
@@ -1621,10 +1810,18 @@ class scriptmanager_mainwindow(wx.Frame):
         "synthDriver": _("&speech synthesizer driver"),
         "visionEnhancementProvider": _("&visual enhancement provider"),
     }
+    JUMP_MODE_SCRIPTS = "scripts"
+    JUMP_MODE_FUNCTIONS_ONLY = "functionsOnly"
+    JUMP_MODE_ALL_DEFINITIONS = "allDefinitions"
+    _JUMP_MODE_ORDER = (
+        JUMP_MODE_SCRIPTS,
+        JUMP_MODE_FUNCTIONS_ONLY,
+        JUMP_MODE_ALL_DEFINITIONS,
+    )
     _FOCUS_RETRY_DELAYS_MS = (0, 80, 200, 400)
 
-    def __init__(self, parent, id, title, scriptfile):
-        wx.Frame.__init__(self, parent, id, title)
+    def __init__(self, parent, frameId, title, scriptfile):
+        wx.Frame.__init__(self, parent, frameId, title)
         self._base_window_title = title or _("NVDA Script Manager")
 
         menubar = wx.MenuBar()
@@ -1634,7 +1831,7 @@ class scriptmanager_mainwindow(wx.Frame):
         edit = wx.Menu()
         scripts = wx.Menu()
         # view = wx.Menu()
-        help = wx.Menu()
+        helpMenu = wx.Menu()
         filemenu.AppendSubMenu(filenew, _("&new"))
         filemenu.Append(101, _("&Open\tctrl+o"), _("Open an appmodule"))
         filemenu.Append(102, _("&Save\tctrl+s"), _("Save the appmodule"))
@@ -1642,9 +1839,9 @@ class scriptmanager_mainwindow(wx.Frame):
             103, _("Save &as...\tctrl+shift+s"), _("Save the module as a new file"))
         filemenu.Append(104, _("&build add-on..."), _("Create a distributable add-on from scratchpad contents"))
         filemenu.AppendSeparator()
-        quit = wx.MenuItem(
+        quitItem = wx.MenuItem(
             filemenu, 105, _("&Quit\tAlt+F4"), _("Quit the Application"))
-        filemenu.AppendItem(quit)
+        filemenu.AppendItem(quitItem)
         filenew.Append(110, _("&empty file\tctrl+n"))
         filenew.Append(111, _("&appmodule"))
         filenew.Append(112, _("&global plugin"))
@@ -1681,6 +1878,20 @@ class scriptmanager_mainwindow(wx.Frame):
             _("previous script\tshift+f2"),
             _("Go to previous script definition"),
         )
+        jumpModeMenu = wx.Menu()
+        scripts.AppendSubMenu(jumpModeMenu, _("definition &filter"))
+        jumpModeMenu.AppendRadioItem(232, _("&scripts"), _("Jump only to def script_... definitions"))
+        jumpModeMenu.AppendRadioItem(
+            233,
+            _("functions &only"),
+            _("Jump only to def ... definitions not starting with script_"),
+        )
+        jumpModeMenu.AppendRadioItem(
+            234,
+            _("&all definitions"),
+            _("Jump to both script and non-script def ... definitions"),
+        )
+        scripts.Append(231, _("&cycle definition filter\tctrl+f2"), _("Switch definition filter"))
         scripts.Append(
             226,
             _("script &list\tctrl+l"),
@@ -1717,11 +1928,11 @@ class scriptmanager_mainwindow(wx.Frame):
             _("error &list\tctrl+shift+l"),
             _("Show all errors in a list"),
         )
-        help.Append(901, _("&about..."))
+        helpMenu.Append(901, _("&about..."))
         menubar.Append(filemenu, _("&File"))
         menubar.Append(edit, _("&Edit"))
         menubar.Append(scripts, _('&Scripts'))
-        menubar.Append(help, _("&Help"))
+        menubar.Append(helpMenu, _("&Help"))
         self.SetMenuBar(menubar)
         self.Centre()
         self.Bind(wx.EVT_MENU, self.OnQuit, id=105)
@@ -1739,6 +1950,7 @@ class scriptmanager_mainwindow(wx.Frame):
                 [
                     (wx.ACCEL_CTRL, ord("S"), 102),
                     (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("S"), 103),
+                    (wx.ACCEL_CTRL, ord("I"), 206),
                     (wx.ACCEL_CTRL, ord("R"), 213),
                     (wx.ACCEL_CTRL, ord("W"), 214),
                     (wx.ACCEL_CTRL, ord("L"), 226),
@@ -1746,6 +1958,7 @@ class scriptmanager_mainwindow(wx.Frame):
                     (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("L"), 228),
                     (wx.ACCEL_ALT, wx.WXK_RETURN, 229),
                     (wx.ACCEL_ALT, getattr(wx, "WXK_NUMPAD_ENTER", wx.WXK_RETURN), 229),
+                    (wx.ACCEL_CTRL, wx.WXK_F2, 231),
                 ]
             )
         )
@@ -1768,6 +1981,10 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnGotoLineItem, id=211)
         self.Bind(wx.EVT_MENU, self.OnNextScriptDefinition, id=224)
         self.Bind(wx.EVT_MENU, self.OnPreviousScriptDefinition, id=225)
+        self.Bind(wx.EVT_MENU, self.OnCycleJumpMode, id=231)
+        self.Bind(wx.EVT_MENU, self.OnSetJumpModeScripts, id=232)
+        self.Bind(wx.EVT_MENU, self.OnSetJumpModeFunctionsOnly, id=233)
+        self.Bind(wx.EVT_MENU, self.OnSetJumpModeAllDefinitions, id=234)
         self.Bind(wx.EVT_MENU, self.OnShowScriptList, id=226)
         self.Bind(wx.EVT_MENU, self.OnDeleteCurrentScriptDefinition, id=227)
         self.Bind(wx.EVT_MENU, self.OnScriptProperties, id=229)
@@ -1816,6 +2033,8 @@ class scriptmanager_mainwindow(wx.Frame):
         self.errors = []
         self.current_error_index = -1
         self.replace = False
+        self._jump_mode = sm_backend.get_jump_mode()
+        self._update_jump_mode_menu_checks()
         # Aktiviere Error Logging für das aktuelle Script
         sm_backend.activate_error_logging(scriptfile if scriptfile else None)
         self._update_scratchpad_required_menu_state()
@@ -2399,7 +2618,7 @@ def {clean_name}(self, gesture):
         message = _("enter the line number to go to")
         _col, line = self._get_line_col_from_position(self.text.GetInsertionPoint())
         value = line + 1
-        max = self.text.GetNumberOfLines()
+        maxLine = self.text.GetNumberOfLines()
         ned = wx.NumberEntryDialog(
             parent=self,
             message=message,
@@ -2407,7 +2626,7 @@ def {clean_name}(self, gesture):
             caption=caption,
             value=value,
             min=1,
-            max=max,
+            max=maxLine,
             pos=wx.DefaultPosition,
         )
         if ned.ShowModal() == wx.ID_OK:
@@ -2430,7 +2649,7 @@ def {clean_name}(self, gesture):
         if not hasattr(self, "frdata") or not hasattr(self, "searchresults"):
             self.OnFinditem(event)
             return
-        self.frdata.Flags = self.frdata.Flags or FR_DOWN
+        self.frdata.Flags = self.frdata.Flags | wx.FR_DOWN
         self.searchresultindex += 1
         if self.searchresultindex == len(self.searchresults):
             self.searchresultindex = 0
@@ -2444,7 +2663,7 @@ def {clean_name}(self, gesture):
         if not hasattr(self, "frdata") or not hasattr(self, "searchresults"):
             self.OnFinditem(event)
             return
-        self.frdata.Flags = self.frdata.Flags or not FR_DOWN
+        self.frdata.Flags = self.frdata.Flags & ~wx.FR_DOWN
         self.searchresultindex -= 1
         if self.searchresultindex < 0:
             self.searchresultindex = len(self.searchresults) - 1
@@ -2522,7 +2741,6 @@ def {clean_name}(self, gesture):
                 if not hasattr(self, "searchresultindex"):
                     self.searchresultindex = 0
             else:
-                end = 0
                 direction = -1
                 if not hasattr(self, "searchresultindex"):
                     self.searchresultindex = len(self.searchresults) - 1
@@ -2621,10 +2839,42 @@ def {clean_name}(self, gesture):
             return normalized.replace("\n", "\r\n")
         return normalized
 
+    def _split_call_snippet_and_syntax(self, text):
+        """Split inserted text into call snippet and optional syntax-description tail."""
+        if not text:
+            return text, ""
+
+        lines = text.splitlines(keepends=True)
+        syntax_lines = []
+
+        while lines:
+            candidate = lines[-1].strip()
+            if not candidate:
+                syntax_lines.insert(0, lines.pop())
+                continue
+            if re.match(r"^syntax\s*:", candidate, re.IGNORECASE):
+                syntax_lines.insert(0, lines.pop())
+                break
+            break
+
+        call_snippet = "".join(lines)
+        syntax_tail = "".join(syntax_lines)
+        return call_snippet, syntax_tail
+
+    def _is_find_replace_dialog_active(self):
+        """Return True when a Find/Replace dialog exists and is currently shown."""
+        dlg = getattr(self, "dlg", None)
+        if dlg is None:
+            return False
+        try:
+            return bool(dlg.IsShown())
+        except Exception:
+            return False
+
     def OnInsertFunction(self, event):
         ifd = insertfunctionsdialog(
             self,
-            id=wx.ID_ANY,
+            dialogId=wx.ID_ANY,
             title=_("insert function"),
             includeBlacklistedModules=sm_backend.get_include_blacklisted_modules(),
             translateDocstrings=sm_backend.get_translate_docstrings_enabled(),
@@ -2633,7 +2883,8 @@ def {clean_name}(self, gesture):
             if ifd.ShowModal() != wx.ID_OK:
                 return
 
-            text_to_insert = self._normalize_snippet_newlines(ifd.functionstring or "")
+            normalized_insert_text = self._normalize_snippet_newlines(ifd.functionstring or "")
+            text_to_insert, syntax_tail = self._split_call_snippet_and_syntax(normalized_insert_text)
             import_line = (ifd.importstring or "").replace("\r", "").replace("\n", "").strip()
             inserted_start = None
 
@@ -2657,7 +2908,10 @@ def {clean_name}(self, gesture):
                 self.text.SetInsertionPoint(caret_pos)
                 self.text.SetSelection(caret_pos, caret_pos)
                 self.text.SetFocus()
-                self._edit_method_call_at_cursor(announceErrors=False)
+                dialog_opened = self._edit_method_call_at_cursor(announceErrors=False)
+                if not dialog_opened and syntax_tail:
+                    self.text.SetInsertionPoint(inserted_start + len(text_to_insert))
+                    self.text.WriteText(syntax_tail)
         finally:
             ifd.Destroy()
 
@@ -2947,8 +3201,8 @@ def {clean_name}(self, gesture):
                 wildcard=wcd,
                 style=wx.FD_OPEN | wx.FD_CHANGE_DIR | wx.FD_FILE_MUST_EXIST,
             )
-        except:
-            pass
+        except Exception:
+            return
         if open_dlg.ShowModal() == wx.ID_OK:
             path = open_dlg.GetDirectory() + os.sep + open_dlg.GetFilename()
             ui.message(path)
@@ -3106,10 +3360,25 @@ def {clean_name}(self, gesture):
     def OnKeyDown(self, event):
         keycode = event.GetKeyCode()
         numpad_enter = getattr(wx, "WXK_NUMPAD_ENTER", -1)
+        if event.ControlDown() and keycode in (ord("I"), ord("i")):
+            if self._is_find_replace_dialog_active():
+                event.Skip()
+                return
+            self.OnInsertFunction(None)
+            return
+        if event.ControlDown() and keycode in (ord("R"), ord("r")):
+            if self._is_find_replace_dialog_active():
+                event.Skip()
+                return
+            self.OnInsertFile(None)
+            return
         if event.AltDown() and keycode in (wx.WXK_RETURN, numpad_enter):
             self.OnScriptProperties(None)
             return
         if keycode == wx.WXK_F2:
+            if event.ControlDown():
+                self.OnCycleJumpMode(None)
+                return
             if event.ShiftDown():
                 self.OnPreviousScriptDefinition(None)
             else:
@@ -3265,12 +3534,26 @@ def {clean_name}(self, gesture):
         """Springt zur vorherigen Scriptdefinition (def script_...)."""
         self._goto_script_definition(forward=False)
 
+    def OnCycleJumpMode(self, event):
+        self._cycle_jump_mode()
+
+    def OnSetJumpModeScripts(self, event):
+        self._set_jump_mode(self.JUMP_MODE_SCRIPTS)
+
+    def OnSetJumpModeFunctionsOnly(self, event):
+        self._set_jump_mode(self.JUMP_MODE_FUNCTIONS_ONLY)
+
+    def OnSetJumpModeAllDefinitions(self, event):
+        self._set_jump_mode(self.JUMP_MODE_ALL_DEFINITIONS)
+
     def OnShowScriptList(self, event):
         """Shows all script definitions and allows jumping/deleting."""
         entries = self._get_script_entries()
         if not entries:
             wx.Bell()
-            msg = _("no script definitions found")
+            msg = _("no definitions found for filter: {mode}").format(
+                mode=self._get_jump_mode_label()
+            )
             self.statusbar.SetStatusText(msg, 1)
             ui.message(msg)
             return
@@ -3330,7 +3613,7 @@ def {clean_name}(self, gesture):
         entry = self._get_current_script_entry()
         if entry is None:
             wx.Bell()
-            msg = _("cursor is not inside a script definition")
+            msg = _("cursor is not inside a definition for current filter")
             self.statusbar.SetStatusText(msg, 1)
             ui.message(msg)
             return
@@ -3393,8 +3676,70 @@ def {clean_name}(self, gesture):
         self.current_error_index = selection
         self._goto_error(selection)
 
+    def _is_script_definition_name(self, name):
+        return str(name or "").lower().startswith("script_")
+
+    def _definition_matches_jump_mode(self, name, jump_mode=None):
+        mode = jump_mode if jump_mode in self._JUMP_MODE_ORDER else getattr(self, "_jump_mode", self.JUMP_MODE_SCRIPTS)
+        is_script = self._is_script_definition_name(name)
+        if mode == self.JUMP_MODE_SCRIPTS:
+            return is_script
+        if mode == self.JUMP_MODE_FUNCTIONS_ONLY:
+            return not is_script
+        return True
+
+    def _get_jump_mode_label(self, jump_mode=None):
+        mode = jump_mode if jump_mode in self._JUMP_MODE_ORDER else getattr(self, "_jump_mode", self.JUMP_MODE_SCRIPTS)
+        if mode == self.JUMP_MODE_SCRIPTS:
+            return _("scripts")
+        if mode == self.JUMP_MODE_FUNCTIONS_ONLY:
+            return _("functions only")
+        return _("all definitions")
+
+    def _update_jump_mode_menu_checks(self):
+        menuBar = self.GetMenuBar()
+        if not menuBar:
+            return
+        mode = getattr(self, "_jump_mode", self.JUMP_MODE_SCRIPTS)
+        item = menuBar.FindItemById(232)
+        if item is not None:
+            item.Check(mode == self.JUMP_MODE_SCRIPTS)
+        item = menuBar.FindItemById(233)
+        if item is not None:
+            item.Check(mode == self.JUMP_MODE_FUNCTIONS_ONLY)
+        item = menuBar.FindItemById(234)
+        if item is not None:
+            item.Check(mode == self.JUMP_MODE_ALL_DEFINITIONS)
+
+    def _set_jump_mode(self, jump_mode, announce=True):
+        if jump_mode not in self._JUMP_MODE_ORDER:
+            jump_mode = self.JUMP_MODE_SCRIPTS
+        self._jump_mode = jump_mode
+        sm_backend.set_jump_mode(jump_mode)
+        self._update_jump_mode_menu_checks()
+        self._update_edit_menu_state()
+        if announce:
+            msg = _("definition filter: {mode}").format(mode=self._get_jump_mode_label(jump_mode))
+            self.statusbar.SetStatusText(msg, 1)
+            ui.message(msg)
+
+    def _cycle_jump_mode(self):
+        current = getattr(self, "_jump_mode", self.JUMP_MODE_SCRIPTS)
+        try:
+            current_index = self._JUMP_MODE_ORDER.index(current)
+        except ValueError:
+            current_index = 0
+        next_mode = self._JUMP_MODE_ORDER[(current_index + 1) % len(self._JUMP_MODE_ORDER)]
+        self._set_jump_mode(next_mode, announce=True)
+
     def _get_script_entries(self):
         """Returns script entries with name, range and display text."""
+        return self._get_definition_entries(
+            jump_mode=getattr(self, "_jump_mode", self.JUMP_MODE_SCRIPTS)
+        )
+
+    def _get_definition_entries(self, jump_mode=None):
+        """Returns definition entries filtered by the selected jump mode."""
         content = self.text.GetValue()
         entries = []
         try:
@@ -3404,19 +3749,21 @@ def {clean_name}(self, gesture):
 
         if module is not None:
 
-            # Extract both top-level functions and methods in classes
+            # Extract both top-level functions and methods in classes.
             def process_body(body, parent_class=None):
-                """Recursively process body to find script_ definitions."""
+                """Recursively process body to find function definitions."""
                 for node in body:
                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        if str(getattr(node, "name", "")).startswith("script_"):
+                        function_name = str(getattr(node, "name", ""))
+                        if self._definition_matches_jump_mode(function_name, jump_mode):
                             start_line = getattr(node, "lineno", 1) - 1
                             for decorator in getattr(node, "decorator_list", []):
                                 start_line = min(start_line, getattr(decorator, "lineno", start_line + 1) - 1)
                             end_line = getattr(node, "end_lineno", getattr(node, "lineno", 1)) - 1
                             entries.append(
                                 {
-                                    "name": node.name,
+                                    "name": function_name,
+                                    "isScript": str(function_name or "").lower().startswith("script_"),
                                     "defLine": max(0, getattr(node, "lineno", 1) - 1),
                                     "startLine": max(0, start_line),
                                     "endLine": max(0, end_line),
@@ -3428,15 +3775,17 @@ def {clean_name}(self, gesture):
             
             process_body(module.body)
         else:
-            # Fallback regex approach - also look for methods in classes
-            pattern = re.compile(r"^\s*def\s+(script_[a-zA-Z0-9_]*)\s*\(")
+            # Fallback regex approach - include all function names and filter by mode.
+            pattern = re.compile(r"^\s*(?:async\s+)?def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(")
             raw_lines = content.splitlines()
             def_lines = []
             for line_index, raw_line in enumerate(raw_lines):
                 match = pattern.match(raw_line)
                 if match:
-                    def_lines.append((line_index, match.group(1)))
-            for idx, (line_index, script_name) in enumerate(def_lines):
+                    function_name = match.group(1)
+                    if self._definition_matches_jump_mode(function_name, jump_mode):
+                        def_lines.append((line_index, function_name))
+            for idx, (line_index, function_name) in enumerate(def_lines):
                 start_line = line_index
                 while start_line > 0:
                     previous = raw_lines[start_line - 1].strip()
@@ -3447,7 +3796,8 @@ def {clean_name}(self, gesture):
                 end_line = (def_lines[idx + 1][0] - 1) if idx + 1 < len(def_lines) else max(0, len(raw_lines) - 1)
                 entries.append(
                     {
-                        "name": script_name,
+                        "name": function_name,
+                        "isScript": str(function_name or "").lower().startswith("script_"),
                         "defLine": line_index,
                         "startLine": start_line,
                         "endLine": max(start_line, end_line),
@@ -3484,7 +3834,10 @@ def {clean_name}(self, gesture):
             self.text.ShowPosition(pos)
         except Exception:
             pass
-        msg = _("script definition line {line}").format(line=def_line + 1)
+        if entry.get("isScript"):
+            msg = _("script definition line {line}").format(line=def_line + 1)
+        else:
+            msg = _("definition line {line}").format(line=def_line + 1)
         self.statusbar.SetStatusText(msg, 1)
         ui.message(msg)
 
@@ -3493,9 +3846,15 @@ def {clean_name}(self, gesture):
         end_line = max(start_line, int(entry.get("endLine", start_line)))
 
         delete_name = str(entry.get("name", "script"))
+        if entry.get("isScript"):
+            confirm_template = _("Delete script {name}?")
+            deleted_template = _("script {name} deleted")
+        else:
+            confirm_template = _("Delete definition {name}?")
+            deleted_template = _("definition {name} deleted")
         if (
             wx.MessageBox(
-                _("Delete script {name}?").format(name=delete_name),
+                confirm_template.format(name=delete_name),
                 _("Script Manager"),
                 wx.YES_NO | wx.ICON_QUESTION,
             )
@@ -3518,7 +3877,7 @@ def {clean_name}(self, gesture):
         self._update_window_title()
         self._update_edit_menu_state()
 
-        msg = _("script {name} deleted").format(name=delete_name)
+        msg = deleted_template.format(name=delete_name)
         self.statusbar.SetStatusText(msg, 1)
         ui.message(msg)
 
@@ -3959,7 +4318,12 @@ def {clean_name}(self, gesture):
             pname = pinfo["name"]
             pdefault = pinfo.get("default")
             ptype = pinfo["type"]
+            prequired = bool(pinfo.get("required"))
             val = new_values.get(pname)
+            if not prequired and ptype in ("str", "raw") and str(val or "").strip() == "":
+                continue
+            if not prequired and ptype == "choices" and str(val or "").strip() == "":
+                continue
             if val is None and pdefault is None:
                 continue
             if val == pdefault:
@@ -3993,15 +4357,18 @@ def {clean_name}(self, gesture):
         ui.message(msg)
 
     def _get_script_definition_lines(self):
-        """Liefert alle Zeilenindizes mit Scriptdefinitionen."""
-        return [int(entry.get("defLine", entry["startLine"])) for entry in self._get_script_entries()]
+        """Liefert alle Zeilenindizes mit Definitionen entsprechend dem Sprungmodus."""
+        entries = self._get_definition_entries(jump_mode=getattr(self, "_jump_mode", self.JUMP_MODE_SCRIPTS))
+        return [int(entry.get("defLine", entry["startLine"])) for entry in entries]
 
     def _goto_script_definition(self, forward=True):
-        """Springt zur nächsten/vorherigen Scriptdefinition und signalisiert Umbruch."""
+        """Springt zur nächsten/vorherigen Definition und signalisiert Umbruch."""
         script_lines = self._get_script_definition_lines()
         if not script_lines:
             wx.Bell()
-            msg = _("no script definitions found")
+            msg = _("no definitions found for filter: {mode}").format(
+                mode=self._get_jump_mode_label()
+            )
             self.statusbar.SetStatusText(msg, 1)
             ui.message(msg)
             return
@@ -4031,7 +4398,11 @@ def {clean_name}(self, gesture):
         if wrapped:
             wx.Bell()
 
-        msg = _("script definition line {line}").format(line=target_line + 1)
+        mode = getattr(self, "_jump_mode", self.JUMP_MODE_SCRIPTS)
+        if mode == self.JUMP_MODE_SCRIPTS:
+            msg = _("script definition line {line}").format(line=target_line + 1)
+        else:
+            msg = _("definition line {line}").format(line=target_line + 1)
         self.statusbar.SetStatusText(msg, 1)
         ui.message(msg)
 
@@ -4048,7 +4419,7 @@ def {clean_name}(self, gesture):
             pos = self.text.XYToPosition(0, line_num - 1)
             self.text.SetInsertionPoint(pos)
             self.text.SetSelection(pos, pos)
-        except:
+        except Exception:
             # Falls Zeilennummer ungültig ist
             self.text.SetInsertionPoint(0)
 
@@ -4070,7 +4441,7 @@ def {clean_name}(self, gesture):
         self.OnCheckErrors(event)
 
     def OnQuit(self, event):
-        if self.modify == True:
+        if self.modify:
             dlg = wx.MessageDialog(
                 self,
                 _("Save before Exit?"),
