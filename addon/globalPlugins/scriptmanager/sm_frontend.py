@@ -879,9 +879,8 @@ class insertfunctionsdialog(wx.Dialog):
 
 
 class newscriptdialog(wx.Dialog):
-    """Dialog zum Erstellen eines neuen Scripts mit Vorlage."""
-    
-    # Liste der verfügbaren Scriptkategorien
+    """Dialog for creating a new script or function definition."""
+
     SCRIPT_CATEGORIES = [
         _("Miscellaneous"),
         _("Browse mode"),
@@ -902,10 +901,19 @@ class newscriptdialog(wx.Dialog):
         _("Input"),
         _("Document formatting"),
     ]
-    
-    def __init__(self, parent, dialogId, title):
+    DEFINITION_TYPE_SCRIPT = "script"
+    DEFINITION_TYPE_FUNCTION = "function"
+    TYPE_CHOICES = ["", "str", "int", "float", "bool", "list", "dict", "tuple", "set", "Any", "None"]
+
+    def __init__(self, parent, dialogId, title, initialDefinitionType="script", allowDefinitionTypeChange=True):
         super(newscriptdialog, self).__init__(parent, dialogId, title, style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
-        
+
+        self.definition_type = (
+            initialDefinitionType
+            if initialDefinitionType in (self.DEFINITION_TYPE_SCRIPT, self.DEFINITION_TYPE_FUNCTION)
+            else self.DEFINITION_TYPE_SCRIPT
+        )
+        self.allowDefinitionTypeChange = bool(allowDefinitionTypeChange)
         self.script_name = ""
         self.script_description = ""
         self.script_gesture = ""
@@ -916,36 +924,45 @@ class newscriptdialog(wx.Dialog):
         self.script_allowInSleepMode = False
         self.script_resumeSayAllMode = ""
         self.script_speakOnDemand = False
+        self.function_name = ""
+        self.function_return_type = ""
+        self.function_params = []
         self.captured_key = None
         self.key_capture_active = False
         self.gesture_identifiers = []
         self._capture_mode = None
         self._capture_target_index = None
         self._active_capture_func = None
-        
+
         mainSizer = wx.BoxSizer(wx.VERTICAL)
         sHelper = guiHelper.BoxSizerHelper(self, wx.VERTICAL)
 
-        # Script-Name
-        self.name_ctrl = sHelper.addLabeledControl(_("&Script name:"), wx.TextCtrl)
+        self.definition_type_ctrl = sHelper.addLabeledControl(
+            _("Definition &type:"),
+            wx.Choice,
+            choices=[_("Script"), _("Function")],
+        )
+        self.name_ctrl = sHelper.addLabeledControl(_("Definition &name:"), wx.TextCtrl)
 
-        # Beschreibung
-        self.desc_ctrl = sHelper.addLabeledControl(
+        self.script_panel = wx.Panel(self)
+        scriptSizer = wx.BoxSizer(wx.VERTICAL)
+        scriptHelper = guiHelper.BoxSizerHelper(self.script_panel, wx.VERTICAL)
+
+        self.desc_ctrl = scriptHelper.addLabeledControl(
             _("&Description:"), wx.TextCtrl, style=wx.TE_MULTILINE | wx.TE_WORDWRAP
         )
         self.desc_ctrl.SetMinSize((300, 80))
 
-        # Tastenkombinationen als Liste mit Add/Edit/Delete.
         gestureSizer = wx.StaticBoxSizer(
-            wx.StaticBox(self, label=_("&Gestures:")), wx.VERTICAL
+            wx.StaticBox(self.script_panel, label=_("&Gestures:")), wx.VERTICAL
         )
         gestureRowSizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.gestures_list = wx.ListBox(self, style=wx.LB_SINGLE)
+        self.gestures_list = wx.ListBox(self.script_panel, style=wx.LB_SINGLE)
         self.gestures_list.SetMinSize((320, 90))
         gestureButtonSizer = wx.BoxSizer(wx.VERTICAL)
-        self.gesture_add_btn = wx.Button(self, label=_("&Add (Ins)"))
-        self.gesture_edit_btn = wx.Button(self, label=_("&Edit"))
-        self.gesture_delete_btn = wx.Button(self, label=_("&Delete (Del)"))
+        self.gesture_add_btn = wx.Button(self.script_panel, label=_("&Add (Ins)"))
+        self.gesture_edit_btn = wx.Button(self.script_panel, label=_("&Edit"))
+        self.gesture_delete_btn = wx.Button(self.script_panel, label=_("&Delete (Del)"))
         gestureButtonSizer.Add(self.gesture_add_btn, flag=wx.BOTTOM, border=5)
         gestureButtonSizer.Add(self.gesture_edit_btn, flag=wx.BOTTOM, border=5)
         gestureButtonSizer.Add(self.gesture_delete_btn)
@@ -953,17 +970,16 @@ class newscriptdialog(wx.Dialog):
         gestureRowSizer.AddSpacer(guiHelper.SPACE_BETWEEN_BUTTONS_HORIZONTAL)
         gestureRowSizer.Add(gestureButtonSizer, flag=wx.EXPAND)
         gestureSizer.Add(gestureRowSizer, proportion=1, flag=wx.EXPAND)
-        self.gesture_status_ctrl = wx.TextCtrl(self, style=wx.TE_READONLY)
+        self.gesture_status_ctrl = wx.TextCtrl(self.script_panel, style=wx.TE_READONLY)
         self.gesture_status_ctrl.SetValue(_("Press Add to capture a gesture."))
         gestureSizer.Add(
             self.gesture_status_ctrl,
             flag=wx.EXPAND | wx.TOP,
             border=guiHelper.SPACE_BETWEEN_ASSOCIATED_CONTROL_VERTICAL,
         )
-        sHelper.addItem(gestureSizer, flag=wx.EXPAND)
+        scriptHelper.addItem(gestureSizer, flag=wx.EXPAND)
 
-        # Kategorie
-        self.category_ctrl = sHelper.addLabeledControl(
+        self.category_ctrl = scriptHelper.addLabeledControl(
             _("&Category:"),
             wx.ComboBox,
             choices=self.SCRIPT_CATEGORIES,
@@ -971,22 +987,21 @@ class newscriptdialog(wx.Dialog):
             style=wx.CB_DROPDOWN,
         )
 
-        # Erweiterte Script-Optionen
         advancedSizer = wx.StaticBoxSizer(
-            wx.StaticBox(self, label=_("Advanced script options")), wx.VERTICAL
+            wx.StaticBox(self.script_panel, label=_("Advanced script options")), wx.VERTICAL
         )
-        advHelper = guiHelper.BoxSizerHelper(self, sizer=advancedSizer)
+        advHelper = guiHelper.BoxSizerHelper(self.script_panel, sizer=advancedSizer)
         self.can_propagate_ctrl = advHelper.addItem(
-            wx.CheckBox(self, label=_("Script can &propagate to focus ancestors"))
+            wx.CheckBox(self.script_panel, label=_("Script can &propagate to focus ancestors"))
         )
         self.bypass_input_help_ctrl = advHelper.addItem(
-            wx.CheckBox(self, label=_("&Bypass input help"))
+            wx.CheckBox(self.script_panel, label=_("&Bypass input help"))
         )
         self.allow_sleep_mode_ctrl = advHelper.addItem(
-            wx.CheckBox(self, label=_("Allow in &sleep mode"))
+            wx.CheckBox(self.script_panel, label=_("Allow in &sleep mode"))
         )
         self.speak_on_demand_ctrl = advHelper.addItem(
-            wx.CheckBox(self, label=_("Speak in &on-demand mode"))
+            wx.CheckBox(self.script_panel, label=_("Speak in &on-demand mode"))
         )
         self.resume_say_all_ctrl = advHelper.addLabeledControl(
             _("&Resume say all mode:"),
@@ -995,38 +1010,115 @@ class newscriptdialog(wx.Dialog):
             value="",
             style=wx.CB_DROPDOWN,
         )
-        sHelper.addItem(advancedSizer)
+        scriptHelper.addItem(advancedSizer, flag=wx.EXPAND)
+        scriptSizer.Add(scriptHelper.sizer, proportion=1, flag=wx.EXPAND)
+        self.script_panel.SetSizer(scriptSizer)
+        sHelper.addItem(self.script_panel, flag=wx.EXPAND, proportion=1)
+
+        self.function_panel = wx.Panel(self)
+        functionSizer = wx.BoxSizer(wx.VERTICAL)
+        functionHelper = guiHelper.BoxSizerHelper(self.function_panel, wx.VERTICAL)
+        self.return_type_ctrl = functionHelper.addLabeledControl(
+            _("Return &type:"),
+            wx.ComboBox,
+            choices=self.TYPE_CHOICES,
+            value="",
+            style=wx.CB_DROPDOWN,
+        )
+
+        parameterSizer = wx.StaticBoxSizer(
+            wx.StaticBox(self.function_panel, label=_("&Parameters")), wx.VERTICAL
+        )
+        parameterRowSizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.params_list = wx.ListBox(self.function_panel, style=wx.LB_SINGLE)
+        self.params_list.SetMinSize((320, 110))
+        parameterButtonSizer = wx.BoxSizer(wx.VERTICAL)
+        self.param_add_btn = wx.Button(self.function_panel, label=_("&Add"))
+        self.param_remove_btn = wx.Button(self.function_panel, label=_("&Remove"))
+        parameterButtonSizer.Add(self.param_add_btn, flag=wx.BOTTOM, border=5)
+        parameterButtonSizer.Add(self.param_remove_btn)
+        parameterRowSizer.Add(self.params_list, proportion=1, flag=wx.EXPAND)
+        parameterRowSizer.AddSpacer(guiHelper.SPACE_BETWEEN_BUTTONS_HORIZONTAL)
+        parameterRowSizer.Add(parameterButtonSizer, flag=wx.EXPAND)
+        parameterSizer.Add(parameterRowSizer, proportion=1, flag=wx.EXPAND)
+
+        parameterEditHelper = guiHelper.BoxSizerHelper(self.function_panel, wx.VERTICAL)
+        self.param_name_ctrl = parameterEditHelper.addLabeledControl(
+            _("Parameter &name:"),
+            wx.TextCtrl,
+        )
+        self.param_type_ctrl = parameterEditHelper.addLabeledControl(
+            _("Parameter t&ype:"),
+            wx.ComboBox,
+            choices=self.TYPE_CHOICES,
+            value="",
+            style=wx.CB_DROPDOWN,
+        )
+        self.param_default_ctrl = parameterEditHelper.addLabeledControl(
+            _("Default &value:"),
+            wx.TextCtrl,
+        )
+        parameterSizer.Add(
+            parameterEditHelper.sizer,
+            flag=wx.EXPAND | wx.TOP,
+            border=guiHelper.SPACE_BETWEEN_ASSOCIATED_CONTROL_VERTICAL,
+        )
+        functionHelper.addItem(parameterSizer, flag=wx.EXPAND, proportion=1)
+        functionSizer.Add(functionHelper.sizer, proportion=1, flag=wx.EXPAND)
+        self.function_panel.SetSizer(functionSizer)
+        sHelper.addItem(self.function_panel, flag=wx.EXPAND, proportion=1)
 
         sHelper.addDialogDismissButtons(wx.OK | wx.CANCEL, separated=True)
-        mainSizer.Add(sHelper.sizer, border=guiHelper.BORDER_FOR_DIALOGS, flag=wx.ALL)
-        mainSizer.Fit(self)
+        mainSizer.Add(sHelper.sizer, border=guiHelper.BORDER_FOR_DIALOGS, flag=wx.ALL | wx.EXPAND, proportion=1)
         self.SetSizer(mainSizer)
-        self.SetSize((500, 400))
+        mainSizer.Fit(self)
+        self.SetMinSize((520, 420))
+        self.SetSize((560, 520))
 
-        # Event-Bindungen
+        self.Bind(wx.EVT_CHOICE, self.onDefinitionTypeChanged, self.definition_type_ctrl)
         self.Bind(wx.EVT_BUTTON, self.onAddGesture, self.gesture_add_btn)
         self.Bind(wx.EVT_BUTTON, self.onEditGesture, self.gesture_edit_btn)
         self.Bind(wx.EVT_BUTTON, self.onDeleteGesture, self.gesture_delete_btn)
         self.Bind(wx.EVT_LISTBOX, self.onGestureSelectionChanged, self.gestures_list)
         self.Bind(wx.EVT_LISTBOX_DCLICK, self.onEditGesture, self.gestures_list)
+        self.Bind(wx.EVT_BUTTON, self.onAddParameter, self.param_add_btn)
+        self.Bind(wx.EVT_BUTTON, self.onRemoveParameter, self.param_remove_btn)
+        self.Bind(wx.EVT_LISTBOX, self.onParameterSelectionChanged, self.params_list)
         self.Bind(wx.EVT_BUTTON, self.onOk, id=wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.onCancel, id=wx.ID_CANCEL)
         self.Bind(wx.EVT_CHAR_HOOK, self.onCharHook)
         self.Bind(wx.EVT_WINDOW_DESTROY, self.onDestroy)
-        self._updateGestureControlsState()
 
-        # Fokus auf Name-Feld
+        self._applyDefinitionTypeUI()
+        self._updateGestureControlsState()
+        self._updateParameterControlsState()
         self.name_ctrl.SetFocus()
 
+    def _applyDefinitionTypeUI(self):
+        is_script = self.definition_type == self.DEFINITION_TYPE_SCRIPT
+        self.definition_type_ctrl.SetSelection(0 if is_script else 1)
+        self.definition_type_ctrl.Enable(self.allowDefinitionTypeChange)
+        self.script_panel.Show(is_script)
+        self.function_panel.Show(not is_script)
+        self.Layout()
+
+    def onDefinitionTypeChanged(self, event):
+        selection = self.definition_type_ctrl.GetSelection()
+        self.definition_type = (
+            self.DEFINITION_TYPE_FUNCTION if selection == 1 else self.DEFINITION_TYPE_SCRIPT
+        )
+        self._applyDefinitionTypeUI()
+        event.Skip()
+
     def onAddGesture(self, event):
-        """Startet den Capture-Modus zum Hinzufügen einer Tastenkombination."""
+        """Start gesture capture for adding a shortcut."""
         if self.key_capture_active:
             self._stopCaptureGesture(canceled=True)
             return
         self._startCaptureGesture(mode="add")
 
     def onEditGesture(self, event):
-        """Startet den Capture-Modus zum Ändern der selektierten Tastenkombination."""
+        """Start gesture capture for editing the selected shortcut."""
         if self.key_capture_active:
             self._stopCaptureGesture(canceled=True)
             return
@@ -1042,7 +1134,7 @@ class newscriptdialog(wx.Dialog):
         self._startCaptureGesture(mode="edit", targetIndex=index)
 
     def onDeleteGesture(self, event):
-        """Löscht die selektierte Tastenkombination."""
+        """Delete the selected shortcut."""
         if self.key_capture_active:
             self._stopCaptureGesture(canceled=True)
             return
@@ -1057,12 +1149,10 @@ class newscriptdialog(wx.Dialog):
         self._updateGestureControlsState()
 
     def onGestureSelectionChanged(self, event):
-        """Aktualisiert Status und Button-Zustände nach Selektionswechsel."""
         self._updateGestureControlsState()
         event.Skip()
 
     def _startCaptureGesture(self, mode, targetIndex=None):
-        """Aktiviert die Erfassung für neue oder bestehende Tastenkombinationen."""
         inputCore = __import__("inputCore")
         if inputCore.manager._captureFunc:
             wx.MessageBox(
@@ -1081,7 +1171,6 @@ class newscriptdialog(wx.Dialog):
         self.SetFocus()
 
         def _captureFunc(gesture):
-            # Reuse NVDA's input gesture pipeline (keyboard, braille, etc.).
             if gesture.isModifier:
                 return False
             inputCore.manager._captureFunc = None
@@ -1093,7 +1182,6 @@ class newscriptdialog(wx.Dialog):
         inputCore.manager._captureFunc = _captureFunc
 
     def _stopCaptureGesture(self, canceled=False, updateUI=True):
-        """Deaktiviert die Gestenerfassung."""
         inputCore = __import__("inputCore")
         if inputCore.manager._captureFunc == self._active_capture_func:
             inputCore.manager._captureFunc = None
@@ -1113,7 +1201,6 @@ class newscriptdialog(wx.Dialog):
             self._updateGestureControlsState()
 
     def _updateGestureControlsState(self):
-        """Aktualisiert aktiv/deaktiviert-Status der Gesten-Bedienelemente."""
         hasSelection = self.gestures_list.GetSelection() != -1
         self.gesture_add_btn.Enable(True)
         self.gesture_edit_btn.Enable((not self.key_capture_active) and hasSelection)
@@ -1121,7 +1208,6 @@ class newscriptdialog(wx.Dialog):
         self.gestures_list.Enable(not self.key_capture_active)
 
     def _handleCapturedGesture(self, gesture):
-        """Verarbeitet eine mit dem NVDA-Capture-Handler erfasste Geste."""
         gids = list(getattr(gesture, "normalizedIdentifiers", []))
         if not gids:
             self._stopCaptureGesture(canceled=True)
@@ -1146,7 +1232,6 @@ class newscriptdialog(wx.Dialog):
             self._addOrReplaceGesture(gids[0])
 
     def _addOrReplaceGesture(self, gesture_identifier):
-        """Fügt eine erfasste Geste hinzu oder ersetzt die selektierte Geste."""
         display_text = self._getDisplayTextForGestureIdentifier(gesture_identifier)
         if self._capture_mode == "edit" and self._capture_target_index is not None:
             if 0 <= self._capture_target_index < len(self.gesture_identifiers):
@@ -1159,12 +1244,91 @@ class newscriptdialog(wx.Dialog):
             self.gestures_list.SetSelection(len(self.gesture_identifiers) - 1)
         self.gesture_status_ctrl.SetValue(display_text)
         self._stopCaptureGesture(canceled=False)
-    
+
+    def _formatParameterDisplay(self, param_data):
+        text = str(param_data.get("name", "")).strip()
+        param_type = str(param_data.get("type", "")).strip()
+        default_value = str(param_data.get("default", "")).strip()
+        if param_type:
+            text += f": {param_type}"
+        if default_value:
+            text += f" = {default_value}"
+        return text
+
+    def _updateParameterControlsState(self):
+        hasSelection = self.params_list.GetSelection() != wx.NOT_FOUND
+        self.param_remove_btn.Enable(hasSelection)
+
+    def _loadSelectedParameter(self):
+        index = self.params_list.GetSelection()
+        if index == wx.NOT_FOUND or index >= len(self.function_params):
+            return
+        param_data = self.function_params[index]
+        self.param_name_ctrl.SetValue(str(param_data.get("name", "")))
+        self.param_type_ctrl.SetValue(str(param_data.get("type", "")))
+        self.param_default_ctrl.SetValue(str(param_data.get("default", "")))
+        self._updateParameterControlsState()
+
+    def onParameterSelectionChanged(self, event):
+        self._loadSelectedParameter()
+        event.Skip()
+
+    def onAddParameter(self, event):
+        param_name = self.param_name_ctrl.GetValue().strip()
+        if not param_name:
+            wx.MessageBox(
+                _("Please enter a parameter name."),
+                _("Missing Information"),
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            self.param_name_ctrl.SetFocus()
+            return
+        param_data = {
+            "name": param_name,
+            "type": self.param_type_ctrl.GetValue().strip(),
+            "default": self.param_default_ctrl.GetValue().strip(),
+        }
+        selected_index = self.params_list.GetSelection()
+        existing_index = next(
+            (i for i, existing in enumerate(self.function_params) if existing.get("name") == param_name),
+            wx.NOT_FOUND,
+        )
+        target_index = existing_index if existing_index != wx.NOT_FOUND else selected_index
+        if target_index != wx.NOT_FOUND and 0 <= target_index < len(self.function_params):
+            self.function_params[target_index] = param_data
+        else:
+            self.function_params.append(param_data)
+            target_index = len(self.function_params) - 1
+        self.params_list.Clear()
+        for item in self.function_params:
+            self.params_list.Append(self._formatParameterDisplay(item))
+        self.params_list.SetSelection(target_index)
+        self._loadSelectedParameter()
+        self.params_list.SetFocus()
+
+    def onRemoveParameter(self, event):
+        index = self.params_list.GetSelection()
+        if index == wx.NOT_FOUND or index >= len(self.function_params):
+            return
+        del self.function_params[index]
+        self.params_list.Delete(index)
+        if self.function_params:
+            next_index = min(index, len(self.function_params) - 1)
+            self.params_list.SetSelection(next_index)
+            self._loadSelectedParameter()
+        else:
+            self.param_name_ctrl.SetValue("")
+            self.param_type_ctrl.SetValue("")
+            self.param_default_ctrl.SetValue("")
+            self._updateParameterControlsState()
+
     def onCharHook(self, event):
-        """Event-Handler für Tasteneingaben während der Erfassung."""
         if not self.key_capture_active:
+            key_code = event.GetKeyCode()
+            if self.params_list.HasFocus() and key_code == wx.WXK_DELETE:
+                self.onRemoveParameter(None)
+                return
             if self.gestures_list.HasFocus():
-                key_code = event.GetKeyCode()
                 if key_code == wx.WXK_INSERT:
                     self.onAddGesture(None)
                     return
@@ -1177,14 +1341,12 @@ class newscriptdialog(wx.Dialog):
             event.Skip()
             return
 
-        # Während aktivem Capture nur Esc lokal behandeln; alles andere via NVDA Capture-Pipeline.
         if event.GetKeyCode() == wx.WXK_ESCAPE:
             self._stopCaptureGesture(canceled=True)
             return
         event.Skip()
 
     def _getDisplayTextForGestureIdentifier(self, identifier):
-        """Liefert menschenlesbaren Text für einen Gesture-Identifier im Format 'Tastenkombination (Schema)'."""
         try:
             inputCore = __import__("inputCore")
             source, gesture_text = inputCore.getDisplayTextForGestureIdentifier(identifier)
@@ -1195,11 +1357,23 @@ class newscriptdialog(wx.Dialog):
         except Exception:
             pass
         return identifier
-    
+
     def onOk(self, event):
-        """Event-Handler für OK-Button."""
         if self.key_capture_active:
             self._stopCaptureGesture(canceled=True)
+
+        if self.definition_type == self.DEFINITION_TYPE_FUNCTION:
+            self.function_name = self.name_ctrl.GetValue().strip()
+            self.function_return_type = self.return_type_ctrl.GetValue().strip()
+            if self.param_name_ctrl.GetValue().strip():
+                self.onAddParameter(None)
+            if not self.function_name:
+                wx.MessageBox(_("Please enter a definition name."), _("Missing Information"))
+                self.name_ctrl.SetFocus()
+                return
+            self._safeEndModal(wx.ID_OK)
+            return
+
         self.script_name = self.name_ctrl.GetValue().strip()
         self.script_description = self.desc_ctrl.GetValue().strip()
         gesture_count = len(self.gesture_identifiers)
@@ -1212,29 +1386,26 @@ class newscriptdialog(wx.Dialog):
         else:
             self.script_gesture = ""
             self.script_gestures = list(self.gesture_identifiers)
-        # Freie Eingabe aus dem ComboBox-Feld unterstützen.
         self.script_category = self.category_ctrl.GetValue().strip()
         self.script_canPropagate = self.can_propagate_ctrl.GetValue()
         self.script_bypassInputHelp = self.bypass_input_help_ctrl.GetValue()
         self.script_allowInSleepMode = self.allow_sleep_mode_ctrl.GetValue()
         self.script_resumeSayAllMode = self.resume_say_all_ctrl.GetValue().strip()
         self.script_speakOnDemand = self.speak_on_demand_ctrl.GetValue()
-        
+
         if not self.script_name:
-            wx.MessageBox(_("Please enter a script name."), _("Missing Information"))
+            wx.MessageBox(_("Please enter a definition name."), _("Missing Information"))
             self.name_ctrl.SetFocus()
             return
 
         self._safeEndModal(wx.ID_OK)
-    
+
     def onCancel(self, event):
-        """Event-Handler für Cancel-Button."""
         if self.key_capture_active:
             self._stopCaptureGesture(canceled=True)
         self._safeEndModal(wx.ID_CANCEL)
 
     def _safeEndModal(self, code):
-        """Close dialog safely, avoiding duplicate EndModal calls."""
         try:
             if self.IsModal():
                 self.EndModal(code)
@@ -1251,15 +1422,15 @@ class newscriptdialog(wx.Dialog):
             pass
 
     def onDestroy(self, event):
-        """Räumt aktive Gesture-Capture-Callbacks bei Dialogzerstörung auf."""
         if self.key_capture_active:
             self._stopCaptureGesture(canceled=True, updateUI=False)
         event.Skip()
 
     def populate_from_data(self, data):
-        """Pre-fill dialog controls from a dict of @script decorator values."""
         if not data:
             return
+        self.definition_type = self.DEFINITION_TYPE_SCRIPT
+        self._applyDefinitionTypeUI()
         name = data.get("name", "")
         if name:
             try:
@@ -1792,6 +1963,93 @@ class MethodCallEditDialog(wx.Dialog):
         return len(errors) == 0, values, errors
 
 
+class EditorSettingsDialog(wx.Dialog):
+    """Settings dialog for Script Manager editor behavior."""
+
+    _JUMP_MODE_CHOICES = (
+        ("scripts", _("scripts")),
+        ("functionsOnly", _("functions only")),
+        ("allDefinitions", _("all definitions")),
+    )
+
+    def __init__(self, parent):
+        super(EditorSettingsDialog, self).__init__(
+            parent,
+            title=_("Settings"),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+
+        mainSizer = wx.BoxSizer(wx.VERTICAL)
+        sHelper = guiHelper.BoxSizerHelper(self, wx.VERTICAL)
+
+        self.jumpModeChoice = sHelper.addLabeledControl(
+            _("Definition &filter:"),
+            wx.Choice,
+            choices=[label for _value, label in self._JUMP_MODE_CHOICES],
+        )
+        current_jump_mode = sm_backend.get_jump_mode()
+        selected_index = 0
+        for index, (mode_value, _label) in enumerate(self._JUMP_MODE_CHOICES):
+            if mode_value == current_jump_mode:
+                selected_index = index
+                break
+        self.jumpModeChoice.SetSelection(selected_index)
+
+        self.includeBlacklistCheckBox = sHelper.addItem(
+            wx.CheckBox(
+                self,
+                label=_("Include module blacklist in 'Insert function' dialog"),
+            )
+        )
+        self.includeBlacklistCheckBox.SetValue(sm_backend.get_include_blacklisted_modules())
+
+        self.translateDocstringsCheckBox = sHelper.addItem(
+            wx.CheckBox(self, label=_("Translate docstrings"))
+        )
+        self.translateDocstringsCheckBox.SetValue(sm_backend.get_translate_docstrings_enabled())
+
+        self.replaceTabsCheckBox = sHelper.addItem(
+            wx.CheckBox(self, label=_("Replace tabs with &spaces"))
+        )
+        self.replaceTabsCheckBox.SetValue(sm_backend.get_indent_with_spaces_enabled())
+
+        self.indentWidthSpin = sHelper.addLabeledControl(
+            _("Spaces per &tab:"),
+            wx.SpinCtrl,
+            min=1,
+            max=12,
+            initial=sm_backend.get_indent_width(),
+        )
+
+        sHelper.addDialogDismissButtons(wx.OK | wx.CANCEL, separated=True)
+        mainSizer.Add(sHelper.sizer, border=guiHelper.BORDER_FOR_DIALOGS, flag=wx.ALL | wx.EXPAND, proportion=1)
+        self.SetSizer(mainSizer)
+        mainSizer.Fit(self)
+
+        self.Bind(wx.EVT_CHECKBOX, self._onReplaceTabsChanged, self.replaceTabsCheckBox)
+        self._updateIndentControls()
+
+    def _onReplaceTabsChanged(self, event):
+        self._updateIndentControls()
+        event.Skip()
+
+    def _updateIndentControls(self):
+        self.indentWidthSpin.Enable(self.replaceTabsCheckBox.GetValue())
+
+    def getValues(self):
+        selection = self.jumpModeChoice.GetSelection()
+        if selection < 0 or selection >= len(self._JUMP_MODE_CHOICES):
+            selection = 0
+        jump_mode = self._JUMP_MODE_CHOICES[selection][0]
+        return {
+            "jumpMode": jump_mode,
+            "includeBlacklistedModules": self.includeBlacklistCheckBox.GetValue(),
+            "translateDocstrings": self.translateDocstringsCheckBox.GetValue(),
+            "indentWithSpaces": self.replaceTabsCheckBox.GetValue(),
+            "indentWidth": self.indentWidthSpin.GetValue(),
+        }
+
+
 class scriptmanager_mainwindow(wx.Frame):
 
     SCRATCHPAD_REQUIRED_MENU_IDS = (104, 111, 112, 113, 114, 115)
@@ -1858,7 +2116,8 @@ class scriptmanager_mainwindow(wx.Frame):
         edit.Append(206, _("&insert function...\tctrl+i"))
         edit.Append(213, _("insert &file...\tctrl+r"))
         edit.Append(214, _("save se&lection\tctrl+w"))
-        scripts.Append(223, _("&new script...\tctrl+e"), _("Create a new script with template"))
+        edit.Append(215, _("se&ttings...\tctrl+,"), _("Configure Script Manager editor settings"))
+        scripts.Append(223, _("&new definition...\tctrl+e"), _("Create a new script or function definition"))
         edit.Append(207, _("&find...\tctrl+f"))
         findnextitem = wx.MenuItem(edit, 208, _("find &next\tf3"))
         findnextitem.Enable(True)
@@ -1870,37 +2129,24 @@ class scriptmanager_mainwindow(wx.Frame):
         edit.Append(211, _("go to &line...\tctrl+g"))
         scripts.Append(
             224,
-            _("next script\tf2"),
-            _("Go to next script definition"),
+            _("next definition\tf2"),
+            _("Go to next definition"),
         )
         scripts.Append(
             225,
-            _("previous script\tshift+f2"),
-            _("Go to previous script definition"),
+            _("previous definition\tshift+f2"),
+            _("Go to previous definition"),
         )
-        jumpModeMenu = wx.Menu()
-        scripts.AppendSubMenu(jumpModeMenu, _("definition &filter"))
-        jumpModeMenu.AppendRadioItem(232, _("&scripts"), _("Jump only to def script_... definitions"))
-        jumpModeMenu.AppendRadioItem(
-            233,
-            _("functions &only"),
-            _("Jump only to def ... definitions not starting with script_"),
-        )
-        jumpModeMenu.AppendRadioItem(
-            234,
-            _("&all definitions"),
-            _("Jump to both script and non-script def ... definitions"),
-        )
-        scripts.Append(231, _("&cycle definition filter\tctrl+f2"), _("Switch definition filter"))
+        # Definition filter is configured in Edit > Settings (Ctrl+,).
         scripts.Append(
             226,
-            _("script &list\tctrl+l"),
-            _("Show all script definitions with line numbers"),
+            _("definition &list\tctrl+l"),
+            _("Show all definitions with line numbers"),
         )
         scripts.Append(
             227,
-            _("&delete Script\tctrl+d"),
-            _("Delete the current script definition"),
+            _("&delete definition\tctrl+d"),
+            _("Delete the current definition"),
         )
         scripts.AppendSeparator()
         scripts.Append(
@@ -1953,6 +2199,7 @@ class scriptmanager_mainwindow(wx.Frame):
                     (wx.ACCEL_CTRL, ord("I"), 206),
                     (wx.ACCEL_CTRL, ord("R"), 213),
                     (wx.ACCEL_CTRL, ord("W"), 214),
+                    (wx.ACCEL_CTRL, ord(","), 215),
                     (wx.ACCEL_CTRL, ord("L"), 226),
                     (wx.ACCEL_CTRL, ord("D"), 227),
                     (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("L"), 228),
@@ -1973,6 +2220,7 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnInsertFunction, id=206)
         self.Bind(wx.EVT_MENU, self.OnInsertFile, id=213)
         self.Bind(wx.EVT_MENU, self.OnSaveSelection, id=214)
+        self.Bind(wx.EVT_MENU, self.OnSettings, id=215)
         self.Bind(wx.EVT_MENU, self.OnNewScript, id=223)
         self.Bind(wx.EVT_MENU, self.OnFinditem, id=207)
         self.Bind(wx.EVT_MENU, self.OnFindnextitem, id=208)
@@ -2190,13 +2438,10 @@ class scriptmanager_mainwindow(wx.Frame):
             item.Enable(has_errors)
 
     def _scratchpad_locked_by_policy(self):
-        return (
-            not sm_backend.is_scratchpad_enabled()
-            and sm_backend.get_scratchpad_activation_mode() == sm_backend.SCRATCHPAD_ACTIVATION_NEVER
-        )
+        return not sm_backend.is_scratchpad_enabled()
 
     def _update_scratchpad_required_menu_state(self):
-        shouldEnable = not self._scratchpad_locked_by_policy()
+        shouldEnable = sm_backend.is_scratchpad_enabled()
         menuBar = self.GetMenuBar()
         for itemId in self.SCRATCHPAD_REQUIRED_MENU_IDS:
             menuItem = menuBar.FindItemById(itemId) if menuBar else None
@@ -2209,7 +2454,7 @@ class scriptmanager_mainwindow(wx.Frame):
             return True
         self._update_scratchpad_required_menu_state()
         wx.MessageBox(
-            _("Scratchpad processing is disabled. This action is not available."),
+            sm_backend.get_scratchpad_disabled_message(reasonText),
             _("Script Manager"),
             wx.OK | wx.ICON_INFORMATION,
         )
@@ -2485,9 +2730,25 @@ class scriptmanager_mainwindow(wx.Frame):
         self.text.Clear()
         self._update_window_title()
 
+    def OnSettings(self, event):
+        dlg = EditorSettingsDialog(self)
+        try:
+            if dlg.ShowModal() == wx.ID_OK:
+                values = dlg.getValues()
+                sm_backend.set_jump_mode(values["jumpMode"])
+                sm_backend.set_include_blacklisted_modules(values["includeBlacklistedModules"])
+                sm_backend.set_translate_docstrings_enabled(values["translateDocstrings"])
+                sm_backend.set_indent_with_spaces_enabled(values["indentWithSpaces"])
+                sm_backend.set_indent_width(values["indentWidth"])
+                self._set_jump_mode(values["jumpMode"], announce=False)
+                msg = _("Settings saved")
+                self.statusbar.SetStatusText(msg, 1)
+                ui.message(msg)
+        finally:
+            dlg.Destroy()
+
     def OnNewScript(self, event):
-        """Event-Handler für das Erstellen eines neuen Scripts."""
-        # Check für ungespeicherte Änderungen
+        """Open the definition dialog and insert a script or function template."""
         if self.text.IsModified() and self.text.GetValue():
             dlg = wx.MessageDialog(
                 self,
@@ -2497,41 +2758,140 @@ class scriptmanager_mainwindow(wx.Frame):
             )
             val = dlg.ShowModal()
             dlg.Destroy()
-            
+
             if val == wx.ID_YES:
                 self.OnSaveFile(event)
             elif val == wx.ID_CANCEL:
                 return
-        
-        # Dialog zum Erstellen des Scripts öffnen
-        dlg = newscriptdialog(self, -1, _("Create new script"))
-        result = dlg.ShowModal()
-        
-        if result == wx.ID_OK:
-            # Script basierend auf Dialogeingaben generieren
-            script_content = self._normalize_snippet_newlines(self._generateScriptTemplate(
-                dlg.script_name,
-                dlg.script_description,
-                dlg.script_gesture,
-                dlg.script_category,
-                dlg.script_gestures,
-                dlg.script_canPropagate,
-                dlg.script_bypassInputHelp,
-                dlg.script_allowInSleepMode,
-                dlg.script_resumeSayAllMode,
-                dlg.script_speakOnDemand,
-            ))
 
-            insertion_point = self.text.GetInsertionPoint()
-            inserted_chars = self._ensure_import_line_at_top("from scriptHandler import script")
-            self.text.SetInsertionPoint(insertion_point + inserted_chars)
-            self.text.WriteText(script_content)
-            
-            # Text als modifiziert markieren
+        dlg = newscriptdialog(self, -1, _("Create new definition"))
+        result = dlg.ShowModal()
+
+        if result == wx.ID_OK:
+            indent = self._get_definition_insertion_indent()
+            self._prepare_definition_insertion_point()
+            if dlg.definition_type == dlg.DEFINITION_TYPE_FUNCTION:
+                definition_content = self._normalize_snippet_newlines(
+                    self._generateFunctionTemplate(
+                        dlg.function_name,
+                        dlg.function_return_type,
+                        dlg.function_params,
+                        indent=indent,
+                    )
+                )
+                self.text.WriteText(definition_content)
+            else:
+                definition_content = self._normalize_snippet_newlines(
+                    self._generateScriptTemplate(
+                        dlg.script_name,
+                        dlg.script_description,
+                        dlg.script_gesture,
+                        dlg.script_category,
+                        dlg.script_gestures,
+                        dlg.script_canPropagate,
+                        dlg.script_bypassInputHelp,
+                        dlg.script_allowInSleepMode,
+                        dlg.script_resumeSayAllMode,
+                        dlg.script_speakOnDemand,
+                        indent=indent,
+                    )
+                )
+                insertion_point = self.text.GetInsertionPoint()
+                inserted_chars = self._ensure_import_line_at_top("from scriptHandler import script")
+                self.text.SetInsertionPoint(insertion_point + inserted_chars)
+                self.text.WriteText(definition_content)
+
             self.text.MarkDirty()
-        
+            self._update_window_title()
+
         dlg.Destroy()
-    
+
+    def _sanitize_identifier(self, name, fallback="value"):
+        clean_name = re.sub(r"[^a-zA-Z0-9_]", "_", str(name or "").strip())
+        if not clean_name:
+            clean_name = fallback
+        if clean_name[0].isdigit():
+            clean_name = "_" + clean_name
+        return clean_name
+
+    def _get_definition_insertion_indent(self):
+        try:
+            _col, line = self._get_line_col_from_position(self.text.GetInsertionPoint())
+        except Exception:
+            line = 0
+
+        try:
+            entries = self._get_definition_entries(self.JUMP_MODE_ALL_DEFINITIONS)
+        except Exception:
+            entries = []
+
+        current_entry = None
+        previous_entry = None
+        for entry in entries:
+            start_line = int(entry.get("startLine", 0))
+            end_line = int(entry.get("endLine", start_line))
+            if start_line <= line <= end_line:
+                current_entry = entry
+                break
+            if end_line < line:
+                previous_entry = entry
+
+        for entry in (current_entry, previous_entry):
+            if entry is None:
+                continue
+            def_line = int(entry.get("defLine", entry.get("startLine", 0)))
+            try:
+                def_text = self.text.GetLineText(def_line) or ""
+            except Exception:
+                def_text = ""
+            return self._get_line_leading_tabs(def_text)
+
+        try:
+            line_text = self.text.GetLineText(line) or ""
+            indent = self._get_line_leading_tabs(line_text)
+            if indent:
+                return indent
+            for previous_line in range(line - 1, -1, -1):
+                previous_text = self.text.GetLineText(previous_line) or ""
+                if not previous_text.strip():
+                    continue
+                return self._get_line_leading_tabs(previous_text)
+        except Exception:
+            pass
+        return ""
+
+    def _prepare_definition_insertion_point(self):
+        try:
+            insertion_point = self.text.GetInsertionPoint()
+            _col, line = self._get_line_col_from_position(insertion_point)
+            line_start = self.text.XYToPosition(0, line)
+            prefix_text = self.text.GetRange(line_start, insertion_point)
+            if prefix_text and not prefix_text.strip():
+                self.text.Remove(line_start, insertion_point)
+                self.text.SetInsertionPoint(line_start)
+        except Exception:
+            pass
+
+    def _generateFunctionTemplate(self, name, return_type, parameters, indent=""):
+        clean_name = self._sanitize_identifier(name, fallback="function_name")
+        parameter_parts = []
+        for index, param in enumerate(parameters or []):
+            param_name = self._sanitize_identifier(param.get("name", ""), fallback=f"param{index + 1}")
+            param_type = str(param.get("type", "")).strip()
+            default_value = str(param.get("default", "")).strip()
+            parameter_text = param_name
+            if param_type:
+                parameter_text += f": {param_type}"
+            if default_value:
+                parameter_text += f" = {default_value}"
+            parameter_parts.append(parameter_text)
+        return_annotation = str(return_type or "").strip()
+        if return_annotation:
+            return_annotation = f" -> {return_annotation}"
+        indent = str(indent or "")
+        body_indent = indent + self._get_indent_unit_text(indent_text=indent)
+        return f"{indent}def {clean_name}({', '.join(parameter_parts)}){return_annotation}:\n{body_indent}pass\n"
+
     def _generateScriptTemplate(
         self,
         name,
@@ -2544,15 +2904,14 @@ class scriptmanager_mainwindow(wx.Frame):
         allowInSleepMode,
         resumeSayAllMode,
         speakOnDemand,
+        indent="",
     ):
         """Generiert ein Script-Template basierend auf den Eingaben."""
-        # Script-Namen bereinigen (nur alphanumerisch und Unterstriche)
         clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
         clean_name = clean_name.lower()
         if not clean_name.startswith('script_'):
             clean_name = 'script_' + clean_name
 
-        # Dekorator-Parameter dynamisch aus Dialogfeldern zusammensetzen.
         args = []
         if '\n' in description:
             safe_description = description.replace('"""', '\\"\\"\\"')
@@ -2591,15 +2950,18 @@ class scriptmanager_mainwindow(wx.Frame):
         if not args:
             args.append('description=_("")')
 
-        args_str = ',\n    '.join(args)
+        indent = str(indent or "")
+        inner_indent = indent + self._get_indent_unit_text(indent_text=indent)
+        args_str = (',\n' + inner_indent).join(args)
         safe_name = name.replace('"', '\\"')
-        template = f'''@script(
-    {args_str}
-)
-def {clean_name}(self, gesture):
-    """Script: {safe_name}"""
-    pass
-'''
+        template = (
+            f"{indent}@script(\n"
+            f"{inner_indent}{args_str}\n"
+            f"{indent})\n"
+            f"{indent}def {clean_name}(self, gesture):\n"
+            f"{inner_indent}\"\"\"Script: {safe_name}\"\"\"\n"
+            f"{inner_indent}pass\n"
+        )
 
         return template
 
@@ -3357,6 +3719,149 @@ def {clean_name}(self, gesture):
         except Exception:
             self.statusbar.SetStatusText("", 3)
 
+    def _get_line_leading_tabs(self, line_text):
+        match = re.match(r"^[\t ]*", line_text or "")
+        return match.group(0) if match else ""
+
+    def _detect_space_indent_width(self, line=None, indent_text=""):
+        configured_width = sm_backend.get_indent_width()
+        candidate_lengths = []
+        if indent_text and "\t" not in indent_text:
+            candidate_lengths.append(len(indent_text))
+        try:
+            if line is not None:
+                total_lines = self.text.GetNumberOfLines()
+                start_line = max(0, line - 40)
+                end_line = min(total_lines, line + 41)
+                for scan_line in range(start_line, end_line):
+                    scan_text = self.text.GetLineText(scan_line) or ""
+                    if not scan_text.strip():
+                        continue
+                    scan_indent = self._get_line_leading_tabs(scan_text)
+                    if scan_indent and "\t" not in scan_indent:
+                        candidate_lengths.append(len(scan_indent))
+        except Exception:
+            pass
+        candidate_lengths = sorted({length for length in candidate_lengths if length > 0})
+        if len(candidate_lengths) >= 2:
+            diffs = [
+                right - left
+                for left, right in zip(candidate_lengths, candidate_lengths[1:])
+                if (right - left) > 0
+            ]
+            if diffs:
+                return max(1, min(diffs))
+        if candidate_lengths:
+            length = candidate_lengths[0]
+            if configured_width > 0 and length % configured_width == 0:
+                return configured_width
+            return max(1, length)
+        return configured_width
+
+    def _get_indent_unit_text(self, line=None, indent_text=""):
+        if indent_text:
+            if "\t" in indent_text:
+                return "\t"
+            if " " in indent_text:
+                return " " * self._detect_space_indent_width(line=line, indent_text=indent_text)
+        try:
+            if line is not None:
+                for previous_line in range(line, -1, -1):
+                    previous_text = self.text.GetLineText(previous_line) or ""
+                    if not previous_text.strip():
+                        continue
+                    previous_indent = self._get_line_leading_tabs(previous_text)
+                    if previous_indent:
+                        if "\t" in previous_indent:
+                            return "\t"
+                        if " " in previous_indent:
+                            return " " * self._detect_space_indent_width(
+                                line=previous_line,
+                                indent_text=previous_indent,
+                            )
+        except Exception:
+            pass
+        if sm_backend.get_indent_with_spaces_enabled():
+            return " " * sm_backend.get_indent_width()
+        return "\t"
+
+    def _get_current_line_leading_tabs(self):
+        try:
+            _col, line = self._get_line_col_from_position(self.text.GetInsertionPoint())
+            line_text = self.text.GetLineText(line)
+        except Exception:
+            return ""
+        return self._get_line_leading_tabs(line_text)
+
+    def _maybe_auto_outdent_current_line(self, line, line_text, indent):
+        stripped = str(line_text or "").lstrip("\t ").strip()
+        if not re.match(r"^(elif\b.*|else|except\b.*|finally)\s*:\s*(#.*)?$", stripped):
+            return line_text, indent
+        if not indent:
+            return line_text, indent
+        current_leading = self._get_line_leading_tabs(line_text)
+        previous_indent = None
+        for previous_line in range(line - 1, -1, -1):
+            previous_text = self.text.GetLineText(previous_line) or ""
+            if not previous_text.strip():
+                continue
+            previous_indent = self._get_line_leading_tabs(previous_text)
+            break
+        if previous_indent is None or len(indent) < len(previous_indent):
+            return line_text, indent
+        indent_unit = self._get_indent_unit_text(line=line, indent_text=indent)
+        if indent_unit and indent.endswith(indent_unit):
+            adjusted_indent = indent[:-len(indent_unit)]
+        else:
+            adjusted_indent = indent[:-1]
+        adjusted_line_text = adjusted_indent + str(line_text or "")[len(current_leading):]
+        return adjusted_line_text, adjusted_indent
+
+    def _get_smart_indent_text(self):
+        try:
+            _col, line = self._get_line_col_from_position(self.text.GetInsertionPoint())
+            line_text = self.text.GetLineText(line) or ""
+        except Exception:
+            return "", ""
+        indent = self._get_line_leading_tabs(line_text)
+        line_text, indent = self._maybe_auto_outdent_current_line(line, line_text, indent)
+        if line_text.rstrip().endswith(":"):
+            indent += self._get_indent_unit_text(line=line, indent_text=indent)
+        return line_text, indent
+
+    def _handle_indent_with_spaces(self):
+        if not sm_backend.get_indent_with_spaces_enabled():
+            return False
+        indent_text = " " * sm_backend.get_indent_width()
+        selection_start, selection_end = self.text.GetSelection()
+        if selection_start != selection_end:
+            self.text.Replace(selection_start, selection_end, indent_text)
+        else:
+            self.text.WriteText(indent_text)
+        self._update_caret_status()
+        return True
+
+    def _handle_smart_indent(self):
+        try:
+            selection_start, selection_end = self.text.GetSelection()
+            insertion_point = self.text.GetInsertionPoint()
+            if selection_start != selection_end:
+                _line_text, indent = self._get_smart_indent_text()
+                self.text.Replace(selection_start, selection_end, "\n" + indent)
+                self._update_caret_status()
+                return True
+            _col, line = self._get_line_col_from_position(insertion_point)
+            line_start = self.text.XYToPosition(0, line)
+            line_text, indent = self._get_smart_indent_text()
+            cursor_in_line = max(0, insertion_point - line_start)
+            cursor_in_line = min(cursor_in_line, len(line_text))
+            replacement = line_text[:cursor_in_line] + "\n" + indent
+            self.text.Replace(line_start, insertion_point, replacement)
+            self._update_caret_status()
+            return True
+        except Exception:
+            return False
+
     def OnKeyDown(self, event):
         keycode = event.GetKeyCode()
         numpad_enter = getattr(wx, "WXK_NUMPAD_ENTER", -1)
@@ -3375,6 +3880,23 @@ def {clean_name}(self, gesture):
         if event.AltDown() and keycode in (wx.WXK_RETURN, numpad_enter):
             self.OnScriptProperties(None)
             return
+        if (
+            keycode == wx.WXK_TAB
+            and not event.ControlDown()
+            and not event.AltDown()
+            and not event.ShiftDown()
+            and (event.GetEventObject() is self.text or self.FindFocus() is self.text)
+        ):
+            if self._handle_indent_with_spaces():
+                return
+        if (
+            keycode in (wx.WXK_RETURN, numpad_enter)
+            and not event.ControlDown()
+            and not event.AltDown()
+            and (event.GetEventObject() is self.text or self.FindFocus() is self.text)
+        ):
+            if self._handle_smart_indent():
+                return
         if keycode == wx.WXK_F2:
             if event.ControlDown():
                 self.OnCycleJumpMode(None)
@@ -3559,7 +4081,7 @@ def {clean_name}(self, gesture):
             return
 
         choices = [entry["display"] for entry in entries]
-        dlg = wx.Dialog(self, title=_("Script list"))
+        dlg = wx.Dialog(self, title=_("definition list"))
         listBox = wx.ListBox(dlg, choices=choices, style=wx.LB_SINGLE)
         currentEntry = self._get_current_script_entry(entries)
         if currentEntry is not None:
@@ -3892,7 +4414,13 @@ def {clean_name}(self, gesture):
             return
 
         data = self._parse_decorator_values(entry)
-        dlg = newscriptdialog(self, -1, _("Script properties"))
+        dlg = newscriptdialog(
+            self,
+            -1,
+            _("Script properties"),
+            initialDefinitionType=newscriptdialog.DEFINITION_TYPE_SCRIPT,
+            allowDefinitionTypeChange=False,
+        )
         dlg.populate_from_data(data)
         result = dlg.ShowModal()
 
@@ -4028,7 +4556,7 @@ def {clean_name}(self, gesture):
             args.append("speakOnDemand=True")
         if not args:
             args.append('description=_("")')
-        inner = indent + "    "
+        inner = indent + self._get_indent_unit_text(indent_text=indent)
         nl = chr(10)
         args_str = ("," + nl + inner).join(args)
         return f"{indent}@script({nl}{inner}{args_str}{nl}{indent})"

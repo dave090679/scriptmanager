@@ -1,3 +1,0 @@
-** add a script list
-** add hotkeys to find the next/previous Script
-

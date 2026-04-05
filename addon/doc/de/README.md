@@ -17,7 +17,7 @@ Mit dem Script Manager kannst du:
 
 ## Voraussetzungen
 
-- NVDA (Scratchpad wird bei Bedarf je nach Einstellung automatisch aktiviert oder es wird nachgefragt).
+- NVDA (für Scratchpad-abhängige Funktionen muss die Scratchpad-Verarbeitung in den erweiterten NVDA-Einstellungen manuell aktiviert sein).
 - Schreibrechte auf den NVDA-Benutzerordner.
 
 ## Globale Tastenkombinationen
@@ -42,13 +42,9 @@ Beim Öffnen für die fokussierte Anwendung passiert automatisch Folgendes:
 
 Dadurch kannst du vorhandene Logik schnell übernehmen und lokal anpassen.
 
-Wenn Scratchpad deaktiviert ist, greift die Scratchpad-Policy aus den Script-Manager-Einstellungen:
+Wenn Scratchpad deaktiviert ist, öffnet der Script Manager weiterhin mit einer leeren Datei, aber alle Scratchpad-abhängigen Befehle bleiben ausgegraut bzw. nicht verfügbar.
 
-- Nachfragen (Standard): Es erscheint eine Sicherheitsabfrage mit Ja/Nein und "Diese Nachfrage nicht erneut anzeigen".
-- Ja: Scratchpad wird aktiviert.
-- Ja + "nicht erneut anzeigen": Scratchpad wird ab jetzt bei Bedarf automatisch aktiviert.
-- Nein: Scratchpad bleibt deaktiviert.
-- Nein + "nicht erneut anzeigen": Scratchpad bleibt dauerhaft deaktiviert und die Nachfrage erscheint nicht mehr.
+Um diese Funktionen zu nutzen, muss die Scratchpad-Verarbeitung ausdrücklich in den erweiterten NVDA-Einstellungen aktiviert werden.
 
 ## Script-Manager-Fenster
 

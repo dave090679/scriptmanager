@@ -21,6 +21,7 @@ import html
 import urllib.parse
 import urllib.request
 import wx
+import gui
 addonHandler.initTranslation()
 
 RUNTIME_MANIFEST_FIELDS = (
@@ -54,11 +55,13 @@ SCRATCHPAD_ACTIVATION_VALUES = (
 )
 
 SCRIPTMANAGER_CONFIG_SPEC = {
-	"scratchpadActivation": "string(default='ask')",
+	"scratchpadActivation": "string(default='neverEnable')",
 	"includeBlacklistedModules": "boolean(default=False)",
 	"translateDocstrings": "boolean(default=False)",
 	"showAddonFolderHint": "boolean(default=True)",
 	"jumpMode": "string(default='scripts')",
+	"indentWithSpaces": "boolean(default=False)",
+	"indentWidth": "integer(default=4,min=1,max=12)",
 }
 
 # Global error collector for the current script
@@ -172,16 +175,14 @@ def normalize_scratchpad_activation_mode(mode):
 	lower_mode = mode.lower()
 	if lower_mode in ("yes", "true", "always", "enable", "alwaysenable"):
 		return SCRATCHPAD_ACTIVATION_ALWAYS
-	if lower_mode in ("no", "false", "never", "disable", "neverenable"):
-		return SCRATCHPAD_ACTIVATION_NEVER
-	return SCRATCHPAD_ACTIVATION_ASK
+	return SCRATCHPAD_ACTIVATION_NEVER
 
 
 def get_scratchpad_activation_mode():
 	try:
-		value = _get_scriptmanager_conf().get("scratchpadActivation", SCRATCHPAD_ACTIVATION_ASK)
+		value = _get_scriptmanager_conf().get("scratchpadActivation", SCRATCHPAD_ACTIVATION_NEVER)
 	except Exception:
-		return SCRATCHPAD_ACTIVATION_ASK
+		return SCRATCHPAD_ACTIVATION_NEVER
 	return normalize_scratchpad_activation_mode(value)
 
 
@@ -241,6 +242,33 @@ def set_jump_mode(mode):
 	_get_scriptmanager_conf()["jumpMode"] = mode
 
 
+def get_indent_with_spaces_enabled():
+	try:
+		return bool(_get_scriptmanager_conf().get("indentWithSpaces", False))
+	except Exception:
+		return False
+
+
+def set_indent_with_spaces_enabled(enabled):
+	_get_scriptmanager_conf()["indentWithSpaces"] = bool(enabled)
+
+
+def get_indent_width():
+	try:
+		value = int(_get_scriptmanager_conf().get("indentWidth", 4))
+	except Exception:
+		value = 4
+	return max(1, min(12, value))
+
+
+def set_indent_width(width):
+	try:
+		width = int(width)
+	except Exception:
+		width = 4
+	_get_scriptmanager_conf()["indentWidth"] = max(1, min(12, width))
+
+
 def is_scratchpad_enabled():
 	try:
 		return bool(config.conf["development"]["enableScratchpadDir"])
@@ -256,64 +284,19 @@ def set_scratchpad_enabled(enabled):
 		return False
 
 
-def _show_scratchpad_activation_dialog(parent=None, reasonText=""):
+def get_scratchpad_disabled_message(reasonText=""):
 	message = _(
-		"Script Manager needs the Scratchpad to continue this action.\n\n"
-		"Do you want to enable Scratchpad processing now?"
+		"Scratchpad processing is disabled. Enable it in NVDA's Advanced settings to use this action."
 	)
 	if reasonText:
-		message = "{reason}\n\n{message}".format(reason=reasonText, message=message)
-
-	dlg = wx.Dialog(parent, title=_("Enable Scratchpad processing"))
-	try:
-		mainSizer = wx.BoxSizer(wx.VERTICAL)
-		mainSizer.Add(wx.StaticText(dlg, label=message), 0, wx.ALL | wx.EXPAND, 10)
-		dontAskAgainCheckBox = wx.CheckBox(dlg, label=_("Do not show this prompt again"))
-		mainSizer.Add(dontAskAgainCheckBox, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM | wx.EXPAND, 10)
-
-		buttonSizer = wx.StdDialogButtonSizer()
-		yesButton = wx.Button(dlg, wx.ID_YES)
-		yesButton.SetLabel(_("&Yes"))
-		noButton = wx.Button(dlg, wx.ID_NO)
-		noButton.SetLabel(_("&No"))
-		buttonSizer.AddButton(yesButton)
-		buttonSizer.AddButton(noButton)
-		buttonSizer.Realize()
-		mainSizer.Add(buttonSizer, 0, wx.ALL | wx.ALIGN_RIGHT, 10)
-
-		dlg.SetSizerAndFit(mainSizer)
-		dlg.SetAffirmativeId(wx.ID_YES)
-		dlg.SetEscapeId(wx.ID_NO)
-
-		result = dlg.ShowModal()
-		return result == wx.ID_YES, bool(dontAskAgainCheckBox.GetValue())
-	finally:
-		dlg.Destroy()
+		return "{reason}\n\n{message}".format(reason=reasonText, message=message)
+	return message
 
 
 def ensure_scratchpad_available(parent=None, reasonText=""):
-	"""Ensure scratchpad is enabled according to the configured policy."""
+	"""Return True only when NVDA scratchpad processing is already enabled."""
 	ensure_scriptmanager_config_spec()
-	if is_scratchpad_enabled():
-		return True
-
-	activationMode = get_scratchpad_activation_mode()
-	if activationMode == SCRATCHPAD_ACTIVATION_ALWAYS:
-		return set_scratchpad_enabled(True)
-	if activationMode == SCRATCHPAD_ACTIVATION_NEVER:
-		return False
-
-	allowEnable, dontAskAgain = _show_scratchpad_activation_dialog(parent=parent, reasonText=reasonText)
-	if allowEnable:
-		if not set_scratchpad_enabled(True):
-			return False
-		if dontAskAgain:
-			set_scratchpad_activation_mode(SCRATCHPAD_ACTIVATION_ALWAYS)
-		return True
-
-	if dontAskAgain:
-		set_scratchpad_activation_mode(SCRATCHPAD_ACTIVATION_NEVER)
-	return False
+	return is_scratchpad_enabled()
 
 
 def _normalize_target_language_code(languageCode):

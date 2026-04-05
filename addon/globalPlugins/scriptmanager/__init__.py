@@ -199,25 +199,26 @@ class ScriptManagerSettingsPanel(settingsDialogs.SettingsPanel):
 
 	def makeSettings(self, settingsSizer):
 		helper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
-		scratchpadChoices = [
-			_("ask"),
-			_("yes"),
-			_("no"),
-		]
-		self.scratchpadModeChoice = helper.addLabeledControl(
-			_("Enable scratchpad when needed"),
-			wx.Choice,
-			choices=scratchpadChoices,
-		)
-		self.includeBlacklistCheckBox = helper.addItem(
-			wx.CheckBox(
+		infoLabel = helper.addItem(
+			wx.StaticText(
 				self,
-				label=_("Include module blacklist in 'Insert function' dialog"),
+				label=_(
+					"Scratchpad-dependent functions stay unavailable until Scratchpad processing is enabled in NVDA's Advanced settings."
+				),
 			)
 		)
-		self.translateDocstringsCheckBox = helper.addItem(
-			wx.CheckBox(self, label=_("Translate docstrings"))
+		if hasattr(infoLabel, "Wrap"):
+			infoLabel.Wrap(550)
+		editorInfoLabel = helper.addItem(
+			wx.StaticText(
+				self,
+				label=_(
+					"Editor options such as definition filter, docstring translation, blacklist usage, and indentation are available directly in Script Manager under Edit > Settings."
+				),
+			)
 		)
+		if hasattr(editorInfoLabel, "Wrap"):
+			editorInfoLabel.Wrap(550)
 		self.showAddonFolderHintCheckBox = helper.addItem(
 			wx.CheckBox(
 				self,
@@ -227,27 +228,9 @@ class ScriptManagerSettingsPanel(settingsDialogs.SettingsPanel):
 		self._loadValues()
 
 	def _loadValues(self):
-		mode = sm_backend.get_scratchpad_activation_mode()
-		choiceByMode = {
-			sm_backend.SCRATCHPAD_ACTIVATION_ASK: 0,
-			sm_backend.SCRATCHPAD_ACTIVATION_ALWAYS: 1,
-			sm_backend.SCRATCHPAD_ACTIVATION_NEVER: 2,
-		}
-		self.scratchpadModeChoice.SetSelection(choiceByMode.get(mode, 0))
-		self.includeBlacklistCheckBox.SetValue(sm_backend.get_include_blacklisted_modules())
-		self.translateDocstringsCheckBox.SetValue(sm_backend.get_translate_docstrings_enabled())
 		self.showAddonFolderHintCheckBox.SetValue(sm_backend.get_show_addon_folder_hint())
 
 	def onSave(self):
-		selection = self.scratchpadModeChoice.GetSelection()
-		modeByChoice = {
-			0: sm_backend.SCRATCHPAD_ACTIVATION_ASK,
-			1: sm_backend.SCRATCHPAD_ACTIVATION_ALWAYS,
-			2: sm_backend.SCRATCHPAD_ACTIVATION_NEVER,
-		}
-		sm_backend.set_scratchpad_activation_mode(modeByChoice.get(selection, sm_backend.SCRATCHPAD_ACTIVATION_ASK))
-		sm_backend.set_include_blacklisted_modules(self.includeBlacklistCheckBox.GetValue())
-		sm_backend.set_translate_docstrings_enabled(self.translateDocstringsCheckBox.GetValue())
 		sm_backend.set_show_addon_folder_hint(self.showAddonFolderHintCheckBox.GetValue())
 
 
@@ -545,7 +528,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def _ensureScratchpadForAction(self, reasonText):
 		if sm_backend.ensure_scratchpad_available(parent=gui.mainFrame, reasonText=reasonText):
 			return True
-		ui.message(_("Scratchpad processing remains disabled"))
+		ui.message(sm_backend.get_scratchpad_disabled_message(reasonText))
 		return False
 
 	def onLabelMethodSettings(self, evt):

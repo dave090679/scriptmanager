@@ -27,17 +27,15 @@ Important: If the navigator follows keyboard focus, press NVDA+7 (top number row
 
 - NVDA menu > Tools > Script Manager: opens Script Manager for the currently focused application.
 - NVDA menu > Preferences > Script Manager labeling methods: configures automatic labeling method priority.
-- NVDA settings > Script Manager: configures scratchpad activation policy, insert-function blacklist visibility, and docstring translation.
+- NVDA settings > Script Manager: shows the scratchpad requirement and configures insert-function blacklist visibility, docstring translation, and the temp-folder hint.
 
-## Scratchpad activation policy
+## Scratchpad requirement
 
 Several Script Manager actions require NVDA scratchpad processing (for example creating appModules, drivers, or building add-ons from scratchpad).
 
-- Default behavior: ask before enabling scratchpad.
-- If you choose Yes + "Do not show this prompt again", scratchpad is enabled automatically when needed.
-- If you choose No + "Do not show this prompt again", scratchpad is never enabled automatically and the prompt is no longer shown.
-
-When policy is set to "no" and scratchpad is currently disabled, scratchpad-required menu items are disabled.
+- Script Manager no longer shows its own activation prompt for scratchpad.
+- If scratchpad is disabled, scratchpad-dependent commands stay unavailable/greyed out.
+- To use these commands, enable Scratchpad processing manually in NVDA's Advanced settings.
 
 ## What is included
 

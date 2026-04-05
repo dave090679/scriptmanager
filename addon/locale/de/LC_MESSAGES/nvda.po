@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: loadappmodule 1.1\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-04-03 17:12+0200\n"
-"PO-Revision-Date: 2026-04-03 17:13+0200\n"
+"PO-Revision-Date: 2026-04-04 12:29+0200\n"
 "Last-Translator: David Parduhn <xkill85@gmx.net>\n"
 "Language-Team: David Parduhn <xkill85@gmx.net>\n"
 "Language: de\n"
@@ -99,6 +99,70 @@ msgstr "Docstrings übersetzen"
 msgid "Show add-on folder hint when opening the temp folder"
 msgstr "Hinweisdialog beim Öffnen des temporären Add-on-Ordners anzeigen"
 
+#: addon/globalPlugins/scriptmanager/__init__.py:214
+msgid "Editor options such as definition filter, docstring translation, blacklist usage, and indentation are available directly in Script Manager under Edit > Settings."
+msgstr "Editor-Optionen wie Definitionsfilter, Docstring-Übersetzung, Blacklist-Nutzung und Einrückung sind direkt im Script Manager unter Bearbeiten > Einstellungen verfügbar."
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:940
+msgid "Definition &type:"
+msgstr "Definitions&typ:"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:943
+msgid "Script"
+msgstr "Skript"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:943
+msgid "Function"
+msgstr "Funktion"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:945
+msgid "Definition &name:"
+msgstr "Definitions&name:"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1018
+msgid "Return &type:"
+msgstr "Rückgabe&typ:"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1027
+msgid "&Parameters"
+msgstr "&Parameter"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1044
+msgid "Parameter &name:"
+msgstr "Parameter&name:"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1048
+msgid "Parameter t&ype:"
+msgstr "Parametert&yp:"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1055
+msgid "Default &value:"
+msgstr "Standard&wert:"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1986
+msgid "Settings"
+msgstr "Einstellungen"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1989
+msgid "Definition &filter:"
+msgstr "Definitions&filter:"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2014
+msgid "Replace tabs with &spaces"
+msgstr "Tabs durch &Leerzeichen ersetzen"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2019
+msgid "Spaces per &tab:"
+msgstr "Leerzeichen pro &Tab:"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2050
+msgid "Settings saved"
+msgstr "Einstellungen gespeichert"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2779
+msgid "Create new definition"
+msgstr "Neue Definition erstellen"
+
 #: addon/globalPlugins/scriptmanager/__init__.py:258
 msgid "← previous"
 msgstr "voriges"
@@ -188,9 +252,9 @@ msgstr "NVDA Script-Manager"
 msgid "Open Script Manager with an empty file"
 msgstr "Öffnet den Scriptmanager mit einer leeren Datei"
 
-#: addon/globalPlugins/scriptmanager/__init__.py:548
-msgid "Scratchpad processing remains disabled"
-msgstr "Die Scratchpad-Verarbeitung bleibt deaktiviert"
+#: addon/globalPlugins/scriptmanager/__init__.py:202
+msgid "Scratchpad-dependent functions stay unavailable until Scratchpad processing is enabled in NVDA's Advanced settings."
+msgstr "Scratchpad-abhängige Funktionen bleiben nicht verfügbar, bis die Scratchpad-Verarbeitung in den erweiterten NVDA-Einstellungen aktiviert ist."
 
 #: addon/globalPlugins/scriptmanager/__init__.py:557
 msgid "Automatic labeling methods saved"
@@ -202,7 +266,7 @@ msgstr "appModule jetzt im Script-Manager oeffnen?"
 
 #: addon/globalPlugins/scriptmanager/__init__.py:577
 msgid "Script Manager needs scratchpad to create appModules."
-msgstr "Der Script Manager benötigt das Scratchpad, um AppModule zu laden."
+msgstr "Der Script Manager benötigt das Scratchpad, um AppModule zu erstellen."
 
 #: addon/globalPlugins/scriptmanager/__init__.py:597
 #, python-brace-format
@@ -427,6 +491,18 @@ msgstr "&Ja"
 msgid "&No"
 msgstr "&Nein"
 
+#: addon/globalPlugins/scriptmanager/sm_backend.py:259
+msgid "&Enable now"
+msgstr "&Jetzt aktivieren"
+
+#: addon/globalPlugins/scriptmanager/sm_backend.py:260
+msgid "&Not now"
+msgstr "&Jetzt nicht"
+
+#: addon/globalPlugins/scriptmanager/sm_backend.py:261
+msgid "Never ask &again"
+msgstr "Nie &wieder fragen"
+
 #: addon/globalPlugins/scriptmanager/sm_backend.py:435
 msgid "A part of NonVisual Desktop Access (NVDA)"
 msgstr "Ein Teil von NonVisual Desktop Access (NVDA)"
@@ -611,6 +687,14 @@ msgstr "&bearbeiten"
 msgid "&Delete (Del)"
 msgstr "&Löschen (ENTF)"
 
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1030
+msgid "&Add"
+msgstr "&Hinzufügen"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1031
+msgid "&Remove"
+msgstr "&Entfernen"
+
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:956
 msgid "Press Add to capture a gesture."
 msgstr "Drücken Sie hinzufügen, um eine Tastenkombination zu erfassen"
@@ -676,6 +760,14 @@ msgstr "bereit."
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1223
 msgid "Please enter a script name."
 msgstr "Geben Sie einen Scriptnamen ein."
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1223
+msgid "Please enter a parameter name."
+msgstr "Bitte geben Sie einen Parameternamen ein."
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1223
+msgid "Please enter a definition name."
+msgstr "Bitte geben Sie einen Definitionsnamen ein."
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1343
 msgid "Add-on &name:"
@@ -1015,12 +1107,20 @@ msgid "save se&lection\tctrl+w"
 msgstr "Auswahl speichern\tStrg+W"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1860
-msgid "&new script...\tctrl+e"
-msgstr "&neues Script…\tstrg+e"
+msgid "se&ttings...\tctrl+,"
+msgstr "&Einstellungen...\tStrg+,"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1860
-msgid "Create a new script with template"
-msgstr "Erstellt ein neues Script mit einer Vorlage"
+msgid "Configure Script Manager editor settings"
+msgstr "Konfiguriert die Editor-Einstellungen des Script Managers"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1861
+msgid "&new definition...\tctrl+e"
+msgstr "&neue Definition...\tStrg+E"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:1861
+msgid "Create a new script or function definition"
+msgstr "Erstellt eine neue Skript- oder Funktionsdefinition"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1861
 msgid "&find...\tctrl+f"
@@ -1043,20 +1143,20 @@ msgid "go to &line...\tctrl+g"
 msgstr "gehe zu &Zeile...\tstrg+g"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1872
-msgid "next script\tf2"
-msgstr "nächstes Script\tf2"
+msgid "next definition\tf2"
+msgstr "nächste Definition\tF2"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1873
-msgid "Go to next script definition"
-msgstr "Springt zur nächsten Scriptdefinition"
+msgid "Go to next definition"
+msgstr "Springt zur nächsten Definition"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1877
-msgid "previous script\tshift+f2"
-msgstr "voriges Script\tUmschalt+F2"
+msgid "previous definition\tshift+f2"
+msgstr "vorige Definition\tUmschalt+F2"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1878
-msgid "Go to previous script definition"
-msgstr "springt zur vorigen Scriptdefinition"
+msgid "Go to previous definition"
+msgstr "Springt zur vorigen Definition"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1881
 msgid "definition &filter"
@@ -1096,20 +1196,20 @@ msgid "Switch definition filter"
 msgstr "Definitionsfilter umschalten"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1896
-msgid "script &list\tctrl+l"
-msgstr "Skript&Liste\tStrg+L"
+msgid "definition &list\tctrl+l"
+msgstr "Definitions&liste\tStrg+L"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1897
-msgid "Show all script definitions with line numbers"
-msgstr "Zeigt Alle Skriptdefinitionen mit Zeilennummern an"
+msgid "Show all definitions with line numbers"
+msgstr "Zeigt alle Definitionen mit Zeilennummern an"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1901
-msgid "&delete Script\tctrl+d"
-msgstr "&Skript l&öschen\tstrg+d"
+msgid "&delete definition\tctrl+d"
+msgstr "Definition &löschen\tStrg+D"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1902
-msgid "Delete the current script definition"
-msgstr "Löscht die aktuelle Skriptdefinition"
+msgid "Delete the current definition"
+msgstr "Löscht die aktuelle Definition"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:1907
 msgid "script &properties...\tAlt+Return"
@@ -1200,11 +1300,12 @@ msgstr "&Hilfe"
 msgid "untitled"
 msgstr "unbenannt"
 
+#: addon/globalPlugins/scriptmanager/sm_backend.py:260
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:2210
-msgid "Scratchpad processing is disabled. This action is not available."
+msgid "Scratchpad processing is disabled. Enable it in NVDA's Advanced settings to use this action."
 msgstr ""
-"Die Scratchpad-Verarbeitung ist deaktiviert. Diese Aktion ist nicht "
-"verfügbar."
+"Die Scratchpad-Verarbeitung ist deaktiviert. Aktivieren Sie sie in den "
+"erweiterten NVDA-Einstellungen, um diese Funktion zu verwenden."
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:2266
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:2291
@@ -1315,7 +1416,7 @@ msgstr "Unbekannter Lesefehler"
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:2919
 #, python-brace-format
 msgid "Inserted file: {filename}"
-msgstr "Eingefügte Datei: {filename}"
+msgstr "Datei eingefügt: {filename}"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:2923
 msgid "Error inserting file"
@@ -1518,8 +1619,8 @@ msgid "{count} error(s) found"
 msgstr "{count} Fehler gefunden"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:3510
-msgid "Script list"
-msgstr "Skriptliste"
+msgid "definition list"
+msgstr "Definitionsliste"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:3521
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:3594
@@ -1644,7 +1745,7 @@ msgstr "Keine Definitionen für den Filter gefunden: {mode}"
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:4334
 #, python-brace-format
 msgid "definition line {line}"
-msgstr "Definitionszeile {line}"
+msgstr "Definition in Zeile {line}"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:4356
 #, python-brace-format
@@ -1662,60 +1763,3 @@ msgid ""
 msgstr ""
 "Diese Erweiterung verwendet einen eigenen Editor, um ein Anwendungsmodul für "
 "die aktuelle anwendung zu erstellen oder zu bearbeiten.\n"
-
-#~ msgid "At least one line has multiple or missing color combinations"
-#~ msgstr ""
-#~ "Mindestens eine Zeile hat mehrere oder unvollständige Farbkombinationen"
-
-#, python-brace-format
-#~ msgid ""
-#~ "Highlight color saved for {appname}: foreground {foreground}, background "
-#~ "{background}"
-#~ msgstr ""
-#~ "Hervorhebungsfarbe für {appname} gespeichert: Vordergrund {foreground}, "
-#~ "Hintergrund {background}"
-
-#~ msgid "Add the label here"
-#~ msgstr "Fügen sie hier das Lebel hinzu"
-
-#, python-brace-format
-#~ msgid "Creating a new appModule for labeling: {appname}"
-#~ msgstr "Anwendungsmodul zur Beschriftung von {appname} wird angelegt"
-
-#~ msgid "&Open"
-#~ msgstr "ö&ffnen..."
-
-#~ msgid "&Save"
-#~ msgstr "&speichern"
-
-#~ msgid "&Quit"
-#~ msgstr "&beenden"
-
-#~ msgid "&undo"
-#~ msgstr "&rückgängig"
-
-#~ msgid "&redo"
-#~ msgstr "&wiederholen"
-
-#~ msgid "cu&t"
-#~ msgstr "&ausschneiden"
-
-#~ msgid "&copy"
-#~ msgstr "&kopieren"
-
-#~ msgid "the object has already a name"
-#~ msgstr "Das Objekt hat bereits einen Namen"
-
-#~ msgid "multiple labeling methods are available. Please make a choice:"
-#~ msgstr ""
-#~ "Mehrere Label-Methoden sind verfuegbar. Bitte treffen Sie eine Auswahl:"
-
-#, python-brace-format
-#~ msgid ""
-#~ "There's allready an Appmodule for {appname} included in to NVDA but it is "
-#~ "only included as a compiled file and it can't be loaded into the script "
-#~ "manager for editing."
-#~ msgstr ""
-#~ "Im Lieferumfang von NVDA ist bereits ein anwendungsmodul für {appname} "
-#~ "enthalten, das jedoch nur in compilierter Form vorliegt und deshalb nicht "
-#~ "zum Bearbeiten in den Editor geladen werden kann."
