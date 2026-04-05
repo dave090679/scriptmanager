@@ -58,6 +58,7 @@ SCRIPTMANAGER_CONFIG_SPEC = {
 	"scratchpadActivation": "string(default='neverEnable')",
 	"includeBlacklistedModules": "boolean(default=False)",
 	"translateDocstrings": "boolean(default=False)",
+	"translateErrorMessages": "boolean(default=False)",
 	"showAddonFolderHint": "boolean(default=True)",
 	"jumpMode": "string(default='scripts')",
 	"indentWithSpaces": "boolean(default=False)",
@@ -67,6 +68,8 @@ SCRIPTMANAGER_CONFIG_SPEC = {
 # Global error collector for the current script
 _script_error_collector = None
 _error_collector_lock = threading.RLock()
+_translation_cache = {}
+_translation_cache_lock = threading.RLock()
 
 
 class ScriptErrorCollector(logging.Handler):
@@ -212,6 +215,17 @@ def set_translate_docstrings_enabled(enabled):
 	_get_scriptmanager_conf()["translateDocstrings"] = bool(enabled)
 
 
+def get_translate_error_messages_enabled():
+	try:
+		return bool(_get_scriptmanager_conf().get("translateErrorMessages", False))
+	except Exception:
+		return False
+
+
+def set_translate_error_messages_enabled(enabled):
+	_get_scriptmanager_conf()["translateErrorMessages"] = bool(enabled)
+
+
 def get_show_addon_folder_hint():
 	try:
 		return bool(_get_scriptmanager_conf().get("showAddonFolderHint", True))
@@ -323,6 +337,11 @@ def translate_text_with_google(text, targetLanguage=None, timeoutSeconds=4):
 	if not text.strip():
 		return text
 	targetLanguage = _normalize_target_language_code(targetLanguage or get_nvda_ui_language_code())
+	cache_key = (targetLanguage, text)
+	with _translation_cache_lock:
+		cached_value = _translation_cache.get(cache_key)
+	if cached_value is not None:
+		return cached_value
 	query = urllib.parse.urlencode(
 		{
 			"client": "gtx",
@@ -340,9 +359,31 @@ def translate_text_with_google(text, targetLanguage=None, timeoutSeconds=4):
 		data = json.loads(payload)
 		segments = data[0] if isinstance(data, list) and data else []
 		translated = "".join([segment[0] for segment in segments if isinstance(segment, list) and segment and segment[0]])
-		return translated.strip() or text
+		result = translated.strip() or text
 	except Exception:
 		return text
+	with _translation_cache_lock:
+		_translation_cache[cache_key] = result
+	return result
+
+
+def _prepare_errors_for_display(errors, translateMessages=None):
+	"""Return display-ready error dictionaries, translating messages when enabled."""
+	if not errors:
+		return []
+	if translateMessages is None:
+		translateMessages = get_translate_error_messages_enabled()
+	targetLanguage = get_nvda_ui_language_code() if translateMessages else None
+	display_errors = []
+	for error in errors:
+		error_copy = dict(error or {})
+		message = str(error_copy.get('message', '') or '')
+		if message and 'originalMessage' not in error_copy:
+			error_copy['originalMessage'] = message
+		if translateMessages and message:
+			error_copy['message'] = translate_text_with_google(message, targetLanguage=targetLanguage)
+		display_errors.append(error_copy)
+	return display_errors
 
 
 def get_scratchpad_dir(ensure_exists=True, ensure_subdirs=True):
@@ -542,7 +583,8 @@ def check_script_for_errors(script_content):
 	syntax_errors = check_script_for_syntax_errors(script_content)
 	if syntax_errors:
 		errors.extend(syntax_errors)
-		return errors, _format_errors_for_display(errors)
+		display_errors = _prepare_errors_for_display(errors)
+		return display_errors, _format_errors_for_display(display_errors)
 	
 	# 2. Try to compile the script
 	try:
@@ -592,7 +634,8 @@ def check_script_for_errors(script_content):
 			if not is_duplicate:
 				errors.append(log_error)
 	
-	return errors, _format_errors_for_display(errors)
+	display_errors = _prepare_errors_for_display(errors)
+	return display_errors, _format_errors_for_display(display_errors)
 
 
 def _extract_line_number_from_error(error_string):

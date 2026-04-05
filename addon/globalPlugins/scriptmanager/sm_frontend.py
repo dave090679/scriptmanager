@@ -1971,6 +1971,10 @@ class EditorSettingsDialog(wx.Dialog):
         ("functionsOnly", _("functions only")),
         ("allDefinitions", _("all definitions")),
     )
+    _TRANSLATION_OPTION_CHOICES = (
+        ("translateDocstrings", _("Translate docstrings")),
+        ("translateErrorMessages", _("Translate error messages")),
+    )
 
     def __init__(self, parent):
         super(EditorSettingsDialog, self).__init__(
@@ -2003,10 +2007,18 @@ class EditorSettingsDialog(wx.Dialog):
         )
         self.includeBlacklistCheckBox.SetValue(sm_backend.get_include_blacklisted_modules())
 
-        self.translateDocstringsCheckBox = sHelper.addItem(
-            wx.CheckBox(self, label=_("Translate docstrings"))
-        )
-        self.translateDocstringsCheckBox.SetValue(sm_backend.get_translate_docstrings_enabled())
+        translation_values = {
+            "translateDocstrings": sm_backend.get_translate_docstrings_enabled(),
+            "translateErrorMessages": sm_backend.get_translate_error_messages_enabled(),
+        }
+        self.translationOptionCheckBoxes = {}
+        translationSizer = wx.StaticBoxSizer(wx.VERTICAL, self, _("Translation &options"))
+        for key, label in self._TRANSLATION_OPTION_CHOICES:
+            checkBox = wx.CheckBox(self, label=label)
+            checkBox.SetValue(bool(translation_values.get(key, False)))
+            translationSizer.Add(checkBox, 0, wx.ALL, 5)
+            self.translationOptionCheckBoxes[key] = checkBox
+        sHelper.addItem(translationSizer)
 
         self.replaceTabsCheckBox = sHelper.addItem(
             wx.CheckBox(self, label=_("Replace tabs with &spaces"))
@@ -2041,10 +2053,15 @@ class EditorSettingsDialog(wx.Dialog):
         if selection < 0 or selection >= len(self._JUMP_MODE_CHOICES):
             selection = 0
         jump_mode = self._JUMP_MODE_CHOICES[selection][0]
+        translation_values = {
+            key: checkbox.GetValue()
+            for key, checkbox in self.translationOptionCheckBoxes.items()
+        }
         return {
             "jumpMode": jump_mode,
             "includeBlacklistedModules": self.includeBlacklistCheckBox.GetValue(),
-            "translateDocstrings": self.translateDocstringsCheckBox.GetValue(),
+            "translateDocstrings": translation_values.get("translateDocstrings", False),
+            "translateErrorMessages": translation_values.get("translateErrorMessages", False),
             "indentWithSpaces": self.replaceTabsCheckBox.GetValue(),
             "indentWidth": self.indentWidthSpin.GetValue(),
         }
@@ -2738,6 +2755,7 @@ class scriptmanager_mainwindow(wx.Frame):
                 sm_backend.set_jump_mode(values["jumpMode"])
                 sm_backend.set_include_blacklisted_modules(values["includeBlacklistedModules"])
                 sm_backend.set_translate_docstrings_enabled(values["translateDocstrings"])
+                sm_backend.set_translate_error_messages_enabled(values["translateErrorMessages"])
                 sm_backend.set_indent_with_spaces_enabled(values["indentWithSpaces"])
                 sm_backend.set_indent_width(values["indentWidth"])
                 self._set_jump_mode(values["jumpMode"], announce=False)
@@ -4148,6 +4166,7 @@ class scriptmanager_mainwindow(wx.Frame):
             ui.message(_("No script content to check"))
             return
 
+        sm_backend.activate_error_logging(self.last_name_saved if self.last_name_saved else None)
         self.errors, _error_detail_str = sm_backend.check_script_for_errors(script_content)
         if not self.errors:
             wx.Bell()

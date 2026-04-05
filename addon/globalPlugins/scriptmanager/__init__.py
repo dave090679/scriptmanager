@@ -8,6 +8,7 @@ import api
 import ui
 import addonHandler
 import config
+import languageHandler
 import os
 import shutil
 import sys
@@ -36,6 +37,32 @@ AUTO_LABEL_METHODS = (
 )
 DEFAULT_AUTO_LABEL_METHOD_ORDER = [code for code, _label in AUTO_LABEL_METHODS]
 LABEL_METHOD_SETTINGS_FILENAME = "scriptmanagerLabelMethods.json"
+
+
+def _install_language_normalization_guard():
+	"""Guard against NVDA core calling normalizeLanguage with None."""
+	originalNormalizeLanguage = getattr(languageHandler, "normalizeLanguage", None)
+	if originalNormalizeLanguage is None:
+		return
+	if getattr(originalNormalizeLanguage, "_scriptManagerGuarded", False):
+		return
+
+	def normalizeLanguageSafe(language):
+		if language is None:
+			try:
+				language = languageHandler.getLanguage()
+			except Exception:
+				language = "en"
+			if not language:
+				language = "en"
+		try:
+			return originalNormalizeLanguage(language)
+		except AttributeError:
+			fallback = language or "en"
+			return str(fallback).replace("-", "_")
+
+	normalizeLanguageSafe._scriptManagerGuarded = True
+	languageHandler.normalizeLanguage = normalizeLanguageSafe
 
 
 class LabelMethodSettingsDialog(wx.Dialog):
@@ -213,7 +240,7 @@ class ScriptManagerSettingsPanel(settingsDialogs.SettingsPanel):
 			wx.StaticText(
 				self,
 				label=_(
-					"Editor options such as definition filter, docstring translation, blacklist usage, and indentation are available directly in Script Manager under Edit > Settings."
+					"Editor options such as definition filter, docstring/error translation, blacklist usage, and indentation are available directly in Script Manager under Edit > Settings."
 				),
 			)
 		)
@@ -473,6 +500,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def __init__(self):
 		super().__init__()
+		_install_language_normalization_guard()
 		sm_backend.ensure_scriptmanager_config_spec()
 		self._settingsPanelRegistered = False
 		if ScriptManagerSettingsPanel not in settingsDialogs.NVDASettingsDialog.categoryClasses:

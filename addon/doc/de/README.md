@@ -164,7 +164,9 @@ Zusätzlich wird zu selektierten Elementen vorhandene Dokumentation (Docstring) 
 Über die Script-Manager-Einstellungen kann der Dialog erweitert werden:
 
 - Modul-Blacklist in "Funktion einfügen" einschließen: zeigt auch standardmäßig ausgeblendete Module im Baum an.
-- Docstrings übersetzen: übersetzt die angezeigten Docstrings automatisch mit Google Translate (Quellsprache: automatisch, Zielsprache: NVDA-Oberflächensprache).
+- Übersetzungsoptionen:
+  - Docstrings übersetzen: übersetzt die angezeigten Docstrings automatisch mit Google Translate (Quellsprache: automatisch, Zielsprache: NVDA-Oberflächensprache).
+  - Fehlermeldungen übersetzen: übersetzt Python-Fehlermeldungen aus Fehlerprüfung und Fehlernavigation automatisch mit Google Translate. Ohne Internetverbindung oder bei deaktivierter Option bleibt der englische Originaltext erhalten.
 
 Hinweis: Das Einblenden geblacklisteter Module kann die Performance im Dialog verschlechtern.
 
@@ -177,7 +179,9 @@ Im NVDA-Einstellungsdialog gibt es die Kategorie "Script Manager" mit folgenden 
   Ja (immer automatisch aktivieren)
   Nein (nie aktivieren)
 - Modul-Blacklist in "Funktion einfügen" einschließen
-- Docstrings übersetzen
+- Übersetzungsoptionen (Checkliste):
+  - Docstrings übersetzen
+  - Fehlermeldungen übersetzen
 - Add-on-Ordner-Hinweis anzeigen: zeigt beim Öffnen des temporären Add-on-Ordners (während der Add-on-Erstellung) einen Hinweisdialog an; kann dauerhaft deaktiviert werden.
 
 Wenn "Scratchpad bei Bedarf aktivieren" auf "Nein" steht und Scratchpad deaktiviert ist, werden alle Scratchpad-pflichtigen Menüpunkte automatisch ausgegraut.

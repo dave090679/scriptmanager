@@ -95,13 +95,21 @@ msgstr "Modul-Blacklist in 'Funktion einfügen'-Dialog einschließen"
 msgid "Translate docstrings"
 msgstr "Docstrings übersetzen"
 
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2011
+msgid "Translation &options:"
+msgstr "Übersetzungs&optionen:"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2008
+msgid "Translate error messages"
+msgstr "Fehlermeldungen übersetzen"
+
 #: addon/globalPlugins/scriptmanager/__init__.py:224
 msgid "Show add-on folder hint when opening the temp folder"
 msgstr "Hinweisdialog beim Öffnen des temporären Add-on-Ordners anzeigen"
 
 #: addon/globalPlugins/scriptmanager/__init__.py:214
-msgid "Editor options such as definition filter, docstring translation, blacklist usage, and indentation are available directly in Script Manager under Edit > Settings."
-msgstr "Editor-Optionen wie Definitionsfilter, Docstring-Übersetzung, Blacklist-Nutzung und Einrückung sind direkt im Script Manager unter Bearbeiten > Einstellungen verfügbar."
+msgid "Editor options such as definition filter, docstring/error translation, blacklist usage, and indentation are available directly in Script Manager under Edit > Settings."
+msgstr "Editor-Optionen wie Definitionsfilter, Docstring-/Fehlermeldungs-Übersetzung, Blacklist-Nutzung und Einrückung sind direkt im Script Manager unter Bearbeiten > Einstellungen verfügbar."
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:940
 msgid "Definition &type:"
