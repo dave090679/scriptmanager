@@ -3219,6 +3219,34 @@ class scriptmanager_mainwindow(wx.Frame):
             return normalized.replace("\n", "\r\n")
         return normalized
 
+    def _get_line_indent_at_position(self, pos):
+        """Return the leading indentation of the line containing a text position."""
+        try:
+            _col, line = self._get_line_col_from_position(pos)
+            line_text = self.text.GetLineText(line) or ""
+        except Exception:
+            return ""
+        return self._get_line_leading_tabs(line_text)
+
+    def _indent_inserted_helper_text(self, text, indent=""):
+        """Apply the current line indentation to fallback helper lines like ``Syntax: ...``."""
+        if not text:
+            return text
+        indent = str(indent or "")
+        if not indent:
+            return text
+
+        lines = text.splitlines(keepends=True)
+        formatted = []
+        for line in lines:
+            content = line.rstrip("\r\n")
+            newline = line[len(content):]
+            if content.strip():
+                formatted.append(indent + content.lstrip("\t ") + newline)
+            else:
+                formatted.append(line)
+        return "".join(formatted)
+
     def _split_call_snippet_and_syntax(self, text):
         """Split inserted text into call snippet and optional syntax-description tail."""
         if not text:
@@ -3267,15 +3295,22 @@ class scriptmanager_mainwindow(wx.Frame):
             text_to_insert, syntax_tail = self._split_call_snippet_and_syntax(normalized_insert_text)
             import_line = (ifd.importstring or "").replace("\r", "").replace("\n", "").strip()
             inserted_start = None
+            syntax_indent = ""
 
             if import_line and text_to_insert and text_to_insert != import_line:
                 insertion_point = self.text.GetInsertionPoint()
                 inserted_chars = self._ensure_import_line_at_top(import_line)
                 self.text.SetInsertionPoint(insertion_point + inserted_chars)
                 inserted_start = self.text.GetInsertionPoint()
+                syntax_indent = self._get_line_indent_at_position(inserted_start)
+                if not syntax_indent:
+                    syntax_indent = self._get_definition_insertion_indent()
                 self.text.WriteText(text_to_insert)
             elif text_to_insert:
                 inserted_start = self.text.GetInsertionPoint()
+                syntax_indent = self._get_line_indent_at_position(inserted_start)
+                if not syntax_indent:
+                    syntax_indent = self._get_definition_insertion_indent()
                 self.text.WriteText(text_to_insert)
 
             if inserted_start is not None and text_to_insert and "(" in text_to_insert and ")" in text_to_insert:
@@ -3290,8 +3325,12 @@ class scriptmanager_mainwindow(wx.Frame):
                 self.text.SetFocus()
                 dialog_opened = self._edit_method_call_at_cursor(announceErrors=False)
                 if not dialog_opened and syntax_tail:
+                    formatted_syntax_tail = self._indent_inserted_helper_text(
+                        syntax_tail,
+                        indent=syntax_indent,
+                    )
                     self.text.SetInsertionPoint(inserted_start + len(text_to_insert))
-                    self.text.WriteText(syntax_tail)
+                    self.text.WriteText(formatted_syntax_tail)
         finally:
             ifd.Destroy()
 
