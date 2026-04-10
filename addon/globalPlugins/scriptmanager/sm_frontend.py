@@ -1727,6 +1727,120 @@ class _AddonFolderHintDialog(wx.Dialog):
         self.EndModal(wx.ID_CANCEL)
 
 
+class AccessibleSpinCtrlDouble(wx.Panel):
+    """NVDA-friendly floating-point spin control with an announced label."""
+
+    def __init__(self, parent, label_text, initial_val=0.0, min_val=-1e9, max_val=1e9, inc=0.1):
+        super().__init__(parent)
+        self.min_val = float(min_val)
+        self.max_val = float(max_val)
+        try:
+            self.inc = abs(float(inc))
+        except (TypeError, ValueError):
+            self.inc = 0.1
+        if self.inc <= 0:
+            self.inc = 0.1
+
+        self._digits = self._get_digits_from_increment(self.inc)
+        self._spin_min = int(math.floor(self.min_val / self.inc))
+        self._spin_max = int(math.ceil(self.max_val / self.inc))
+
+        value = self._clamp(self._parse_float(initial_val, default=0.0))
+        spoken_label = str(label_text or "").replace("*", "").replace(":", "").strip()
+
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.label = wx.StaticText(self, label=label_text)
+        sizer.Add(self.label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+
+        self.text_ctrl = wx.TextCtrl(self, value=self._format_value(value))
+        if spoken_label:
+            self.text_ctrl.SetName(spoken_label)
+        self.text_ctrl.SetMinSize((120, -1))
+        sizer.Add(self.text_ctrl, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+
+        self.spin_btn = wx.SpinButton(self, style=wx.SP_VERTICAL)
+        self.spin_btn.SetRange(self._spin_min, self._spin_max)
+        self.spin_btn.SetValue(self._value_to_position(value))
+        sizer.Add(self.spin_btn, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        self.SetSizer(sizer)
+
+        self.spin_btn.Bind(wx.EVT_SPIN, self._on_spin)
+        self.text_ctrl.Bind(wx.EVT_TEXT, self._on_text_entry)
+        self.text_ctrl.Bind(wx.EVT_KEY_DOWN, self._on_key_down)
+
+    def _get_digits_from_increment(self, inc):
+        text = ("{:.10f}").format(float(inc)).rstrip("0")
+        if "." in text:
+            return len(text.split(".", 1)[1])
+        return 0
+
+    def _format_value(self, value):
+        return ("{0:." + str(self._digits) + "f}").format(float(value))
+
+    def _parse_float(self, value, default=None):
+        if isinstance(value, str):
+            value = value.strip().replace(",", ".")
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _clamp(self, value):
+        return max(self.min_val, min(self.max_val, float(value)))
+
+    def _value_to_position(self, value):
+        pos = int(round(float(value) / self.inc))
+        return max(self._spin_min, min(self._spin_max, pos))
+
+    def _set_numeric_value(self, value, notify=True):
+        value = self._clamp(value)
+        formatted = self._format_value(value)
+        if notify:
+            self.text_ctrl.SetValue(formatted)
+        else:
+            self.text_ctrl.ChangeValue(formatted)
+        self.spin_btn.SetValue(self._value_to_position(value))
+        return value
+
+    def _adjust_value(self, steps):
+        current = self._parse_float(self.text_ctrl.GetValue(), default=self.min_val)
+        if current is None:
+            current = self.min_val
+        self._set_numeric_value(current + (steps * self.inc), notify=True)
+
+    def _on_spin(self, event):
+        value = self._clamp(event.GetPosition() * self.inc)
+        self._set_numeric_value(value, notify=False)
+        event.Skip()
+
+    def _on_text_entry(self, event):
+        value = self._parse_float(self.text_ctrl.GetValue(), default=None)
+        if value is not None:
+            self.spin_btn.SetValue(self._value_to_position(self._clamp(value)))
+        event.Skip()
+
+    def _on_key_down(self, event):
+        key = event.GetKeyCode()
+        if key == wx.WXK_UP:
+            self._adjust_value(1)
+            return
+        if key == wx.WXK_DOWN:
+            self._adjust_value(-1)
+            return
+        event.Skip()
+
+    def GetValue(self):
+        value = self._parse_float(self.text_ctrl.GetValue(), default=None)
+        if value is None:
+            return self.text_ctrl.GetValue()
+        return self._clamp(value)
+
+    def SetFocus(self):
+        self.text_ctrl.SetFocus()
+
+
 class MethodCallEditDialog(wx.Dialog):
     """Dynamic dialog for editing the parameters of a method call."""
 
@@ -1749,8 +1863,9 @@ class MethodCallEditDialog(wx.Dialog):
             cur_val = current_values.get(pname, pdefault)
 
             label_text = pname + (" *:" if pinfo.get("required") else ":")
-            label = wx.StaticText(scroll, label=label_text)
-            scroll_sizer.Add(label, 0, wx.TOP | wx.LEFT, 6)
+            if ptype != "float":
+                label = wx.StaticText(scroll, label=label_text)
+                scroll_sizer.Add(label, 0, wx.TOP | wx.LEFT, 6)
 
             if ptype == "bool":
                 ctrl = wx.CheckBox(scroll)
@@ -1774,8 +1889,15 @@ class MethodCallEditDialog(wx.Dialog):
                     init_val = float(cur_val) if cur_val is not None else (float(pdefault) if pdefault is not None else 0.0)
                 except (ValueError, TypeError):
                     init_val = 0.0
-                ctrl = wx.SpinCtrlDouble(scroll, min=mn, max=mx, initial=init_val, inc=pinfo.get("inc", 0.1))
-                scroll_sizer.Add(ctrl, 0, wx.LEFT | wx.BOTTOM, 6)
+                ctrl = AccessibleSpinCtrlDouble(
+                    scroll,
+                    label_text=label_text,
+                    initial_val=init_val,
+                    min_val=mn,
+                    max_val=mx,
+                    inc=pinfo.get("inc", 0.1),
+                )
+                scroll_sizer.Add(ctrl, 0, wx.TOP | wx.LEFT | wx.BOTTOM | wx.EXPAND, 6)
 
             elif ptype == "choices":
                 choices = pinfo.get("choices", [])
@@ -3269,6 +3391,31 @@ class scriptmanager_mainwindow(wx.Frame):
         syntax_tail = "".join(syntax_lines)
         return call_snippet, syntax_tail
 
+    def _get_call_text_range(self, call_node):
+        """Return the absolute text start/end positions for a detected call."""
+        if isinstance(call_node, _TextCallRef):
+            return call_node.start_pos, call_node.end_pos
+
+        start_line = call_node.lineno - 1
+        start_col = call_node.col_offset
+        end_line = call_node.end_lineno - 1
+        end_col = call_node.end_col_offset
+        start_pos = self.text.XYToPosition(start_col, start_line)
+        end_pos = self.text.XYToPosition(end_col, end_line)
+        return start_pos, end_pos
+
+    def _find_call_end_near_position(self, pos):
+        """Return the current end position of a call around a text position."""
+        content = self.text.GetValue()
+        if not content:
+            return None
+        pos = max(0, min(int(pos), len(content)))
+        call_node, _ = self._find_text_call_at_cursor(content, pos)
+        if call_node is None:
+            return None
+        _start_pos, end_pos = self._get_call_text_range(call_node)
+        return end_pos
+
     def _is_find_replace_dialog_active(self):
         """Return True when a Find/Replace dialog exists and is currently shown."""
         dlg = getattr(self, "dlg", None)
@@ -3314,16 +3461,26 @@ class scriptmanager_mainwindow(wx.Frame):
                 self.text.WriteText(text_to_insert)
 
             if inserted_start is not None and text_to_insert and "(" in text_to_insert and ")" in text_to_insert:
-                # Keep caret on the inserted call (not after trailing newlines), so F4 works immediately.
+                # Temporarily move into the call so F4/call-edit detection can resolve it,
+                # but restore the caret to the natural end position afterwards.
                 call_open_offset = text_to_insert.find("(")
                 if call_open_offset >= 0:
                     caret_pos = inserted_start + call_open_offset
                 else:
                     caret_pos = inserted_start + len(text_to_insert)
+                restore_caret_pos = self._find_call_end_near_position(caret_pos)
+                if restore_caret_pos is None:
+                    restore_caret_pos = inserted_start + len(text_to_insert)
+
                 self.text.SetInsertionPoint(caret_pos)
                 self.text.SetSelection(caret_pos, caret_pos)
                 self.text.SetFocus()
                 dialog_opened = self._edit_method_call_at_cursor(announceErrors=False)
+
+                updated_call_end = self._find_call_end_near_position(caret_pos)
+                if updated_call_end is not None:
+                    restore_caret_pos = updated_call_end
+
                 if not dialog_opened and syntax_tail:
                     formatted_syntax_tail = self._indent_inserted_helper_text(
                         syntax_tail,
@@ -3331,6 +3488,11 @@ class scriptmanager_mainwindow(wx.Frame):
                     )
                     self.text.SetInsertionPoint(inserted_start + len(text_to_insert))
                     self.text.WriteText(formatted_syntax_tail)
+                    restore_caret_pos = self.text.GetInsertionPoint()
+
+                self.text.SetInsertionPoint(restore_caret_pos)
+                self.text.SetSelection(restore_caret_pos, restore_caret_pos)
+                self.text.SetFocus()
         finally:
             ifd.Destroy()
 
@@ -4923,16 +5085,7 @@ class scriptmanager_mainwindow(wx.Frame):
 
     def _replace_call_in_text(self, call_node, new_call_text):
         """Replace a method call in the editor with new_call_text."""
-        if isinstance(call_node, _TextCallRef):
-            start_pos = call_node.start_pos
-            end_pos = call_node.end_pos
-        else:
-            start_line = call_node.lineno - 1
-            start_col = call_node.col_offset
-            end_line = call_node.end_lineno - 1
-            end_col = call_node.end_col_offset
-            start_pos = self.text.XYToPosition(start_col, start_line)
-            end_pos = self.text.XYToPosition(end_col, end_line)
+        start_pos, end_pos = self._get_call_text_range(call_node)
         self.text.Remove(start_pos, end_pos)
         self.text.SetInsertionPoint(start_pos)
         self.text.WriteText(new_call_text)
