@@ -90,15 +90,19 @@ Bei ungespeicherten Änderungen wirst du vor Neu/Öffnen/Beenden gefragt, ob ges
 - Ersetzen (Ctrl+H)
 - Gehe zu Zeile (Ctrl+G)
 
-
 ### Menü Scripts
 
 - Neues Script erzeugen (Ctrl+E)
 - Nächste Scriptdefinition (F2)
+- Vorige Scriptdefinition (Umschalt+F2)
+- Vorige Klassendefinition (Ctrl+F2)
+- Nächste Klassendefinition (Ctrl+Umschalt+F2)
+- Umschließende Klassendefinition (Alt+F2)
 - Nächster Fehler (Alt+Pfeil runter)
 - Voriger Fehler (Alt+Pfeil hoch)
 - Scriptfehler prüfen (Ctrl+Umschalt+E)
-- Vorige Scriptdefinition (Umschalt+F2)
+
+Hinweis: Den Definitionsfilter stellst du in Bearbeiten > Einstellungen (Ctrl+,) um.
 
 ### Menü Hilfe
 

@@ -2276,6 +2276,21 @@ class scriptmanager_mainwindow(wx.Frame):
             _("previous definition\tshift+f2"),
             _("Go to previous definition"),
         )
+        scripts.Append(
+            236,
+            _("next class definition\tctrl+shift+f2"),
+            _("Jump to next class definition"),
+        )
+        scripts.Append(
+            237,
+            _("previous class definition\tctrl+f2"),
+            _("Jump to previous class definition"),
+        )
+        scripts.Append(
+            235,
+            _("enclosing &class\talt+f2"),
+            _("Jump to the enclosing class definition"),
+        )
         # Definition filter is configured in Edit > Settings (Ctrl+,).
         scripts.Append(
             226,
@@ -2344,7 +2359,7 @@ class scriptmanager_mainwindow(wx.Frame):
                     (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("L"), 228),
                     (wx.ACCEL_ALT, wx.WXK_RETURN, 229),
                     (wx.ACCEL_ALT, getattr(wx, "WXK_NUMPAD_ENTER", wx.WXK_RETURN), 229),
-                    (wx.ACCEL_CTRL, wx.WXK_F2, 231),
+                    (wx.ACCEL_ALT, wx.WXK_F2, 235),
                 ]
             )
         )
@@ -2368,7 +2383,10 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnGotoLineItem, id=211)
         self.Bind(wx.EVT_MENU, self.OnNextScriptDefinition, id=224)
         self.Bind(wx.EVT_MENU, self.OnPreviousScriptDefinition, id=225)
-        self.Bind(wx.EVT_MENU, self.OnCycleJumpMode, id=231)
+        self.Bind(wx.EVT_MENU, self.OnNextClassDefinition, id=236)
+        self.Bind(wx.EVT_MENU, self.OnPreviousClassDefinition, id=237)
+        
+        self.Bind(wx.EVT_MENU, self.OnGotoEnclosingClass, id=235)
         self.Bind(wx.EVT_MENU, self.OnSetJumpModeScripts, id=232)
         self.Bind(wx.EVT_MENU, self.OnSetJumpModeFunctionsOnly, id=233)
         self.Bind(wx.EVT_MENU, self.OnSetJumpModeAllDefinitions, id=234)
@@ -2382,6 +2400,7 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnCheckErrors, id=222)
         self.Bind(wx.EVT_MENU, self.OnShowErrorList, id=228)
         self.Bind(wx.EVT_FIND, self.on_find)
+        self.Bind(wx.EVT_FIND_CLOSE, self.on_find_close)
         # self.Bind(wx.EVT_FIND_NEXT, self.findnext)
         self.Bind(wx.EVT_FIND_REPLACE, self.on_replace)
         self.Bind(wx.EVT_FIND_REPLACE_ALL, self.on_find_replace_all)
@@ -3148,7 +3167,7 @@ class scriptmanager_mainwindow(wx.Frame):
         self.dlg.Show()
 
     def OnFindnextitem(self, event):
-        if not hasattr(self, "frdata") or not hasattr(self, "searchresults"):
+        if not hasattr(self, "frdata") or not hasattr(self, "searchresults") or not self.searchresults:
             self.OnFinditem(event)
             return
         self.frdata.Flags = self.frdata.Flags | wx.FR_DOWN
@@ -3162,7 +3181,7 @@ class scriptmanager_mainwindow(wx.Frame):
         self.text.SetSelection(pos, pos + len(self.frdata.FindString))
 
     def OnFindpreviousitem(self, event):
-        if not hasattr(self, "frdata") or not hasattr(self, "searchresults"):
+        if not hasattr(self, "frdata") or not hasattr(self, "searchresults") or not self.searchresults:
             self.OnFinditem(event)
             return
         self.frdata.Flags = self.frdata.Flags & ~wx.FR_DOWN
@@ -3175,23 +3194,62 @@ class scriptmanager_mainwindow(wx.Frame):
         )
         self.text.SetSelection(pos, pos + len(self.frdata.FindString))
 
-    def on_find(self, event):
-        fstring = self.frdata.FindString  # also from event.GetFindString()
+    def on_find_close(self, event):
+        dlg = getattr(self, "dlg", None)
+        try:
+            if event is not None and hasattr(event, "GetDialog"):
+                dlg = event.GetDialog() or dlg
+        except Exception:
+            pass
+        if dlg is not None:
+            try:
+                dlg.Destroy()
+            except Exception:
+                pass
+        self.dlg = None
+
+    def _rebuild_search_results(self):
+        fstring = str(getattr(self.frdata, "FindString", "") or "")
         wordborder = ""
         searchflags = 0
         if self.frdata.Flags & wx.FR_NOMATCHCASE:
             searchflags = searchflags | re.I
         if self.frdata.Flags & wx.FR_WHOLEWORD:
             wordborder = r"\b"
-        self.searchpattern = re.compile(
-            pattern=wordborder + fstring + wordborder, flags=searchflags
-        )
-        if not hasattr(self, "searchresults"):
+        if not fstring:
+            self.searchpattern = None
             self.searchresults = []
-            for line in range(self.text.GetNumberOfLines()):
-                for m in self.searchpattern.finditer(self.text.GetLineText(line)):
-                    column = m.start()
-                    self.searchresults.append((line, column))
+            self.searchresultindex = 0
+            return ""
+        self.searchpattern = re.compile(
+            pattern=wordborder + re.escape(fstring) + wordborder,
+            flags=searchflags,
+        )
+        self.searchresults = []
+        for line in range(self.text.GetNumberOfLines()):
+            for match in self.searchpattern.finditer(self.text.GetLineText(line)):
+                column = match.start()
+                self.searchresults.append((line, column))
+        if self.searchresults:
+            current_index = int(getattr(self, "searchresultindex", 0))
+            self.searchresultindex = max(0, min(current_index, len(self.searchresults) - 1))
+        else:
+            self.searchresultindex = 0
+        return fstring
+
+    def _close_find_dialog_after_success(self):
+        dlg = getattr(self, "dlg", None)
+        if dlg is None:
+            return
+        try:
+            if dlg.GetWindowStyleFlag() & wx.FR_REPLACEDIALOG:
+                return
+        except Exception:
+            pass
+        self.on_find_close(None)
+
+    def on_find(self, event):
+        fstring = self._rebuild_search_results()
         if len(self.searchresults) > 0:
             if hasattr(self, "searchresultindex"):
                 if self.searchresultindex >= len(self.searchresults):
@@ -3211,6 +3269,8 @@ class scriptmanager_mainwindow(wx.Frame):
                 self.searchresults[self.searchresultindex][0],
             )
             self.text.SetSelection(pos, pos + len(fstring))
+            self.text.SetInsertionPoint(pos)
+            wx.CallAfter(self._close_find_dialog_after_success)
             self.searchresultindex += direction
         else:
             gui.messageBox(message=_("text not found"), caption=_("find"))
@@ -3893,12 +3953,8 @@ class scriptmanager_mainwindow(wx.Frame):
         self.text.SelectAll()
 
     def OnTextChanged(self, event):
-        if hasattr(self, "searchpattern"):
-            self.searchresults = []
-            for x in range(self.text.GetNumberOfLines()):
-                for m in self.searchpattern.finditer(self.text.GetLineText(x)):
-                    column = m.start()
-                    self.searchresults.append((x, column))
+        if hasattr(self, "searchpattern") and getattr(self, "searchpattern", None) is not None and hasattr(self, "frdata"):
+            self._rebuild_search_results()
         self.statusbar.SetStatusText(_(" modified"), 1)
         self._update_caret_status()
         self.modify = True
@@ -4118,7 +4174,13 @@ class scriptmanager_mainwindow(wx.Frame):
                 return
         if keycode == wx.WXK_F2:
             if event.ControlDown():
-                self.OnCycleJumpMode(None)
+                if event.ShiftDown():
+                    self.OnNextClassDefinition(None)
+                else:
+                    self.OnPreviousClassDefinition(None)
+                return
+            if event.AltDown():
+                self.OnGotoEnclosingClass(None)
                 return
             if event.ShiftDown():
                 self.OnPreviousScriptDefinition(None)
@@ -4128,7 +4190,7 @@ class scriptmanager_mainwindow(wx.Frame):
         if keycode == wx.WXK_F4:
             self.OnEditMethodCall(None)
             return
-        if hasattr(self, "searchresults"):
+        if hasattr(self, "searchresults") and hasattr(self, "frdata"):
             if len(self.searchresults) > 0:
                 navkeylist = [
                     wx.WXK_DOWN,
@@ -4149,15 +4211,19 @@ class scriptmanager_mainwindow(wx.Frame):
                     wx.WXK_UP,
                 ]
                 if keycode in navkeylist:
-                    x = 0
+                    x = int(getattr(self, "searchresultindex", 0))
+                    x = max(0, min(x, len(self.searchresults) - 1))
                     while (
-                        self.text.XYToPosition(
-                            self.searchresults[x][1], self.searchresults[x][0]
-                        )
-                        +len(self.frdata.FindString)
-                    ) < self.text.GetInsertionPoint():
+                        x + 1 < len(self.searchresults)
+                        and (
+                            self.text.XYToPosition(
+                                self.searchresults[x][1], self.searchresults[x][0]
+                            )
+                            +len(self.frdata.FindString)
+                        ) < self.text.GetInsertionPoint()
+                    ):
                         x += 1
-                self.searchresultindex = x
+                    self.searchresultindex = x
         if keycode == wx.WXK_INSERT:
             if not self.replace:
                 self.statusbar.SetStatusText(_("INS"), 2)
@@ -4275,8 +4341,41 @@ class scriptmanager_mainwindow(wx.Frame):
         """Springt zur vorherigen Scriptdefinition (def script_...)."""
         self._goto_script_definition(forward=False)
 
+    def OnGotoEnclosingClass(self, event):
+        entry = self._get_current_script_entry()
+        if entry is not None and entry.get("className"):
+            class_name = str(entry.get("className") or "")
+            target = {
+                "entryType": "class",
+                "name": class_name,
+                "qualifiedName": class_name,
+                "defLine": int(entry.get("classDefLine", entry.get("classStartLine", 0)) or 0),
+                "startLine": int(entry.get("classStartLine", entry.get("classDefLine", 0)) or 0),
+                "endLine": int(entry.get("classEndLine", entry.get("classDefLine", 0)) or 0),
+            }
+            self._goto_script_entry(target)
+            return
+
+        target = self._get_current_class_entry()
+        if target is None:
+            wx.Bell()
+            msg = _("no enclosing class found at the current position")
+            self.statusbar.SetStatusText(msg, 1)
+            ui.message(msg)
+            return
+
+        self._goto_script_entry(target)
+
     def OnCycleJumpMode(self, event):
         self._cycle_jump_mode()
+
+    def OnNextClassDefinition(self, event):
+        """Springt zur nächsten Klassendefinition."""
+        self._goto_class_definition(forward=True)
+
+    def OnPreviousClassDefinition(self, event):
+        """Springt zur vorigen Klassendefinition."""
+        self._goto_class_definition(forward=False)
 
     def OnSetJumpModeScripts(self, event):
         self._set_jump_mode(self.JUMP_MODE_SCRIPTS)
@@ -4421,13 +4520,33 @@ class scriptmanager_mainwindow(wx.Frame):
     def _is_script_definition_name(self, name):
         return str(name or "").lower().startswith("script_")
 
-    def _definition_matches_jump_mode(self, name, jump_mode=None):
+    def _definition_has_script_decorator(self, node):
+        for decorator in getattr(node, "decorator_list", []):
+            target = decorator.func if isinstance(decorator, ast.Call) else decorator
+            if isinstance(target, ast.Name) and target.id == "script":
+                return True
+            if isinstance(target, ast.Attribute) and target.attr == "script":
+                return True
+        return False
+
+    def _get_definition_display_name(self, entry):
+        name = str(entry.get("qualifiedName") or entry.get("name") or "")
+        raw_name = str(entry.get("name") or "")
+        class_name = str(entry.get("className") or "")
+        if entry.get("isScript") and raw_name.lower().startswith("script_"):
+            trimmed_name = raw_name[len("script_"):]
+            if trimmed_name:
+                return f"{class_name}.{trimmed_name}" if class_name else trimmed_name
+        return name or _("unnamed definition")
+
+    def _definition_matches_jump_mode(self, name, jump_mode=None, is_script=None):
         mode = jump_mode if jump_mode in self._JUMP_MODE_ORDER else getattr(self, "_jump_mode", self.JUMP_MODE_SCRIPTS)
-        is_script = self._is_script_definition_name(name)
+        if is_script is None:
+            is_script = self._is_script_definition_name(name)
         if mode == self.JUMP_MODE_SCRIPTS:
-            return is_script
+            return bool(is_script)
         if mode == self.JUMP_MODE_FUNCTIONS_ONLY:
-            return not is_script
+            return not bool(is_script)
         return True
 
     def _get_jump_mode_label(self, jump_mode=None):
@@ -4474,6 +4593,88 @@ class scriptmanager_mainwindow(wx.Frame):
         next_mode = self._JUMP_MODE_ORDER[(current_index + 1) % len(self._JUMP_MODE_ORDER)]
         self._set_jump_mode(next_mode, announce=True)
 
+    def _get_class_entries(self):
+        """Returns class definition entries with name, range and display text."""
+        content = self.text.GetValue()
+        entries = []
+        try:
+            module = ast.parse(content)
+        except Exception:
+            return entries
+
+        # Extract top-level and nested class definitions
+        def process_body(body, parent_class=None):
+            """Recursively process body to find class definitions."""
+            for node in body:
+                if isinstance(node, ast.ClassDef):
+                    class_start_line = getattr(node, "lineno", 1) - 1
+                    for decorator in getattr(node, "decorator_list", []):
+                        class_start_line = min(
+                            class_start_line,
+                            getattr(decorator, "lineno", class_start_line + 1) - 1,
+                        )
+                    class_def_line = max(0, getattr(node, "lineno", 1) - 1)
+                    class_end_line = getattr(node, "end_lineno", getattr(node, "lineno", 1)) - 1
+                    class_name = str(getattr(node, "name", ""))
+                    
+                    # Build qualified name if this is a nested class
+                    if parent_class:
+                        qualified_name = f"{parent_class}.{class_name}"
+                    else:
+                        qualified_name = class_name
+                    
+                    entries.append(
+                        {
+                            "name": class_name,
+                            "qualifiedName": qualified_name,
+                            "defLine": class_def_line,
+                            "startLine": max(0, class_start_line),
+                            "endLine": max(0, class_end_line),
+                        }
+                    )
+                    
+                    # Recursively process nested classes
+                    process_body(node.body, parent_class=qualified_name)
+
+        process_body(module.body)
+        return entries
+
+    def _goto_class_definition(self, forward=True):
+        """Springt zur nächsten/vorherigen Klassendefinition und signalisiert Umbruch."""
+        entries = self._get_class_entries()
+        if not entries:
+            wx.Bell()
+            msg = _("no class definitions found")
+            self.statusbar.SetStatusText(msg, 1)
+            ui.message(msg)
+            return
+
+        _col, current_line = self._get_line_col_from_position(self.text.GetInsertionPoint())
+        wrapped = False
+
+        def _entry_line(entry):
+            return int(entry.get("defLine", entry.get("startLine", 0)))
+
+        if forward:
+            target_candidates = [entry for entry in entries if _entry_line(entry) > current_line]
+            if target_candidates:
+                target_entry = target_candidates[0]
+            else:
+                target_entry = entries[0]
+                wrapped = True
+        else:
+            target_candidates = [entry for entry in entries if _entry_line(entry) < current_line]
+            if target_candidates:
+                target_entry = target_candidates[-1]
+            else:
+                target_entry = entries[-1]
+                wrapped = True
+
+        if wrapped:
+            wx.Bell()
+
+        self._goto_script_entry(target_entry)
+
     def _get_script_entries(self):
         """Returns script entries with name, range and display text."""
         return self._get_definition_entries(
@@ -4491,30 +4692,54 @@ class scriptmanager_mainwindow(wx.Frame):
 
         if module is not None:
 
+            def _make_class_info(node):
+                class_start_line = getattr(node, "lineno", 1) - 1
+                for decorator in getattr(node, "decorator_list", []):
+                    class_start_line = min(
+                        class_start_line,
+                        getattr(decorator, "lineno", class_start_line + 1) - 1,
+                    )
+                class_def_line = max(0, getattr(node, "lineno", 1) - 1)
+                class_end_line = getattr(node, "end_lineno", getattr(node, "lineno", 1)) - 1
+                return {
+                    "name": str(getattr(node, "name", "")),
+                    "defLine": class_def_line,
+                    "startLine": max(0, class_start_line),
+                    "endLine": max(0, class_end_line),
+                }
+
             # Extract both top-level functions and methods in classes.
             def process_body(body, parent_class=None):
                 """Recursively process body to find function definitions."""
                 for node in body:
                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         function_name = str(getattr(node, "name", ""))
-                        if self._definition_matches_jump_mode(function_name, jump_mode):
+                        is_script = self._is_script_definition_name(function_name) or self._definition_has_script_decorator(node)
+                        if self._definition_matches_jump_mode(function_name, jump_mode, is_script=is_script):
                             start_line = getattr(node, "lineno", 1) - 1
                             for decorator in getattr(node, "decorator_list", []):
                                 start_line = min(start_line, getattr(decorator, "lineno", start_line + 1) - 1)
                             end_line = getattr(node, "end_lineno", getattr(node, "lineno", 1)) - 1
+                            class_name = parent_class.get("name") if isinstance(parent_class, dict) else None
+                            qualified_name = f"{class_name}.{function_name}" if class_name else function_name
                             entries.append(
                                 {
                                     "name": function_name,
-                                    "isScript": str(function_name or "").lower().startswith("script_"),
+                                    "qualifiedName": qualified_name,
+                                    "className": class_name,
+                                    "classDefLine": parent_class.get("defLine") if isinstance(parent_class, dict) else None,
+                                    "classStartLine": parent_class.get("startLine") if isinstance(parent_class, dict) else None,
+                                    "classEndLine": parent_class.get("endLine") if isinstance(parent_class, dict) else None,
+                                    "isScript": bool(is_script),
                                     "defLine": max(0, getattr(node, "lineno", 1) - 1),
                                     "startLine": max(0, start_line),
                                     "endLine": max(0, end_line),
                                 }
                             )
                     elif isinstance(node, ast.ClassDef):
-                        # Also process class methods
-                        process_body(node.body, parent_class=node.name)
-            
+                        # Also process class methods.
+                        process_body(node.body, parent_class=_make_class_info(node))
+
             process_body(module.body)
         else:
             # Fallback regex approach - include all function names and filter by mode.
@@ -4525,9 +4750,10 @@ class scriptmanager_mainwindow(wx.Frame):
                 match = pattern.match(raw_line)
                 if match:
                     function_name = match.group(1)
-                    if self._definition_matches_jump_mode(function_name, jump_mode):
-                        def_lines.append((line_index, function_name))
-            for idx, (line_index, function_name) in enumerate(def_lines):
+                    is_script = self._is_script_definition_name(function_name)
+                    if self._definition_matches_jump_mode(function_name, jump_mode, is_script=is_script):
+                        def_lines.append((line_index, function_name, is_script))
+            for idx, (line_index, function_name, is_script) in enumerate(def_lines):
                 start_line = line_index
                 while start_line > 0:
                     previous = raw_lines[start_line - 1].strip()
@@ -4539,7 +4765,12 @@ class scriptmanager_mainwindow(wx.Frame):
                 entries.append(
                     {
                         "name": function_name,
-                        "isScript": str(function_name or "").lower().startswith("script_"),
+                        "qualifiedName": function_name,
+                        "className": None,
+                        "classDefLine": None,
+                        "classStartLine": None,
+                        "classEndLine": None,
+                        "isScript": bool(is_script),
                         "defLine": line_index,
                         "startLine": start_line,
                         "endLine": max(start_line, end_line),
@@ -4549,7 +4780,7 @@ class scriptmanager_mainwindow(wx.Frame):
         entries = sorted(entries, key=lambda item: item["startLine"])
         for entry in entries:
             entry["display"] = _("{name} (line {line})").format(
-                name=entry["name"],
+                name=self._get_definition_display_name(entry),
                 line=int(entry.get("defLine", entry.get("startLine", 0))) + 1,
             )
         return entries
@@ -4567,6 +4798,43 @@ class scriptmanager_mainwindow(wx.Frame):
                 return entry
         return None
 
+    def _get_current_class_entry(self):
+        content = self.text.GetValue()
+        try:
+            _col, current_line = self._get_line_col_from_position(self.text.GetInsertionPoint())
+        except Exception:
+            current_line = 0
+        try:
+            module = ast.parse(content)
+        except Exception:
+            return None
+
+        matches = []
+
+        def process_body(body):
+            for node in body:
+                if not isinstance(node, ast.ClassDef):
+                    continue
+                start_line = getattr(node, "lineno", 1) - 1
+                for decorator in getattr(node, "decorator_list", []):
+                    start_line = min(start_line, getattr(decorator, "lineno", start_line + 1) - 1)
+                entry = {
+                    "entryType": "class",
+                    "name": str(getattr(node, "name", "")),
+                    "qualifiedName": str(getattr(node, "name", "")),
+                    "defLine": max(0, getattr(node, "lineno", 1) - 1),
+                    "startLine": max(0, start_line),
+                    "endLine": max(0, getattr(node, "end_lineno", getattr(node, "lineno", 1)) - 1),
+                }
+                if entry["startLine"] <= current_line <= entry["endLine"]:
+                    matches.append(entry)
+                process_body(node.body)
+
+        process_body(module.body)
+        if not matches:
+            return None
+        return sorted(matches, key=lambda item: (item["startLine"], item["endLine"] - item["startLine"]))[-1]
+
     def _goto_script_entry(self, entry):
         def_line = max(0, int(entry.get("defLine", entry.get("startLine", 0))))
         pos = self.text.XYToPosition(0, def_line)
@@ -4576,10 +4844,14 @@ class scriptmanager_mainwindow(wx.Frame):
             self.text.ShowPosition(pos)
         except Exception:
             pass
-        if entry.get("isScript"):
-            msg = _("script definition line {line}").format(line=def_line + 1)
+        display_name = self._get_definition_display_name(entry)
+        entry_type = str(entry.get("entryType", "") or "")
+        if entry_type == "class":
+            msg = _("class {name}, line {line}").format(name=display_name, line=def_line + 1)
+        elif entry.get("isScript"):
+            msg = _("script {name}, line {line}").format(name=display_name, line=def_line + 1)
         else:
-            msg = _("definition line {line}").format(line=def_line + 1)
+            msg = _("definition {name}, line {line}").format(name=display_name, line=def_line + 1)
         self.statusbar.SetStatusText(msg, 1)
         ui.message(msg)
 
@@ -5102,8 +5374,8 @@ class scriptmanager_mainwindow(wx.Frame):
 
     def _goto_script_definition(self, forward=True):
         """Springt zur nächsten/vorherigen Definition und signalisiert Umbruch."""
-        script_lines = self._get_script_definition_lines()
-        if not script_lines:
+        entries = self._get_script_entries()
+        if not entries:
             wx.Bell()
             msg = _("no definitions found for filter: {mode}").format(
                 mode=self._get_jump_mode_label()
@@ -5115,35 +5387,28 @@ class scriptmanager_mainwindow(wx.Frame):
         _col, current_line = self._get_line_col_from_position(self.text.GetInsertionPoint())
         wrapped = False
 
+        def _entry_line(entry):
+            return int(entry.get("defLine", entry.get("startLine", 0)))
+
         if forward:
-            target_candidates = [line for line in script_lines if line > current_line]
+            target_candidates = [entry for entry in entries if _entry_line(entry) > current_line]
             if target_candidates:
-                target_line = target_candidates[0]
+                target_entry = target_candidates[0]
             else:
-                target_line = script_lines[0]
+                target_entry = entries[0]
                 wrapped = True
         else:
-            target_candidates = [line for line in script_lines if line < current_line]
+            target_candidates = [entry for entry in entries if _entry_line(entry) < current_line]
             if target_candidates:
-                target_line = target_candidates[-1]
+                target_entry = target_candidates[-1]
             else:
-                target_line = script_lines[-1]
+                target_entry = entries[-1]
                 wrapped = True
-
-        pos = self.text.XYToPosition(0, target_line)
-        self.text.SetInsertionPoint(pos)
-        self.text.SetSelection(pos, pos)
 
         if wrapped:
             wx.Bell()
 
-        mode = getattr(self, "_jump_mode", self.JUMP_MODE_SCRIPTS)
-        if mode == self.JUMP_MODE_SCRIPTS:
-            msg = _("script definition line {line}").format(line=target_line + 1)
-        else:
-            msg = _("definition line {line}").format(line=target_line + 1)
-        self.statusbar.SetStatusText(msg, 1)
-        ui.message(msg)
+        self._goto_script_entry(target_entry)
 
     def _goto_error(self, error_index):
         """Springt zu einem Fehler mit gegebenem Index."""

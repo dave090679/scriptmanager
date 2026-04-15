@@ -34,6 +34,11 @@ Dieses Dokument fasst die aktuell wichtigsten strukturellen Änderungen im Proje
   - erweiterte Script-Optionen (`canPropagate`, `bypassInputHelp`, `allowInSleepMode`, `resumeSayAllMode`, `speakOnDemand`)
 - Script-Template-Generierung auf dynamische Decorator-Argumente umgestellt.
 - Fehlernavigation und Fehlerprüfung enger mit Backend-Fehlererfassung gekoppelt.
+- Shortcut-Entzerrung bei F2-Navigation:
+  - Umschalten des Definitionsfilters per Tastenkürzel entfernt
+  - Definitionsfilter ist in Bearbeiten > Einstellungen konfigurierbar
+  - `Ctrl+F2` springt zur vorigen Klassendefinition
+  - `Ctrl+Shift+F2` springt zur nächsten Klassendefinition
 
 ## Dokumentation
 
