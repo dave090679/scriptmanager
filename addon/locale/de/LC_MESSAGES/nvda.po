@@ -1133,16 +1133,16 @@ msgid "Go to previous definition"
 msgstr "Springt zur vorigen Definition"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:2281
-msgid "next class definition\tctrl+shift+f2"
-msgstr "nächste Klassendefinition\tUmschalt+strg+F2"
+msgid "next class definition\tctrl+f2"
+msgstr "nächste Klassendefinition\tstrg+F2"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:2282
 msgid "Jump to next class definition"
 msgstr "Springt zur nächsten Klassendefinition"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:2286
-msgid "previous class definition\tctrl+f2"
-msgstr "vorige Klassendefinition\tstrg+F2"
+msgid "previous class definition\tctrl+shift+f2"
+msgstr "vorige Klassendefinition\tUmschalt+strg+F2"
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:2287
 msgid "Jump to previous class definition"

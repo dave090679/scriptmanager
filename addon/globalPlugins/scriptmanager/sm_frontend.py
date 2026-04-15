@@ -2278,12 +2278,12 @@ class scriptmanager_mainwindow(wx.Frame):
         )
         scripts.Append(
             236,
-            _("next class definition\tctrl+shift+f2"),
+            _("next class definition\tctrl+f2"),
             _("Jump to next class definition"),
         )
         scripts.Append(
             237,
-            _("previous class definition\tctrl+f2"),
+            _("previous class definition\tctrl+shift+f2"),
             _("Jump to previous class definition"),
         )
         scripts.Append(
@@ -4175,9 +4175,9 @@ class scriptmanager_mainwindow(wx.Frame):
         if keycode == wx.WXK_F2:
             if event.ControlDown():
                 if event.ShiftDown():
-                    self.OnNextClassDefinition(None)
-                else:
                     self.OnPreviousClassDefinition(None)
+                else:
+                    self.OnNextClassDefinition(None)
                 return
             if event.AltDown():
                 self.OnGotoEnclosingClass(None)
