@@ -3170,29 +3170,58 @@ class scriptmanager_mainwindow(wx.Frame):
         if not hasattr(self, "frdata") or not hasattr(self, "searchresults") or not self.searchresults:
             self.OnFinditem(event)
             return
+        fstring = self._rebuild_search_results()
+        if not self.searchresults:
+            gui.messageBox(message=_("text not found"), caption=_("find"))
+            return
         self.frdata.Flags = self.frdata.Flags | wx.FR_DOWN
-        self.searchresultindex += 1
-        if self.searchresultindex == len(self.searchresults):
-            self.searchresultindex = 0
+        self.searchresultindex = self._get_search_result_index_from_caret(forward=True)
         pos = self.text.XYToPosition(
             self.searchresults[self.searchresultindex][1],
             self.searchresults[self.searchresultindex][0],
         )
-        self.text.SetSelection(pos, pos + len(self.frdata.FindString))
+        self.text.SetSelection(pos, pos + len(fstring))
+        self.text.SetInsertionPoint(pos)
 
     def OnFindpreviousitem(self, event):
         if not hasattr(self, "frdata") or not hasattr(self, "searchresults") or not self.searchresults:
             self.OnFinditem(event)
             return
+        fstring = self._rebuild_search_results()
+        if not self.searchresults:
+            gui.messageBox(message=_("text not found"), caption=_("find"))
+            return
         self.frdata.Flags = self.frdata.Flags & ~wx.FR_DOWN
-        self.searchresultindex -= 1
-        if self.searchresultindex < 0:
-            self.searchresultindex = len(self.searchresults) - 1
+        self.searchresultindex = self._get_search_result_index_from_caret(forward=False)
         pos = self.text.XYToPosition(
             self.searchresults[self.searchresultindex][1],
             self.searchresults[self.searchresultindex][0],
         )
-        self.text.SetSelection(pos, pos + len(self.frdata.FindString))
+        self.text.SetSelection(pos, pos + len(fstring))
+        self.text.SetInsertionPoint(pos)
+
+    def _get_search_result_index_from_caret(self, forward=True):
+        """Return the next/previous search-result index using current caret position as anchor."""
+        if not getattr(self, "searchresults", None):
+            return 0
+
+        caret_pos = self.text.GetInsertionPoint()
+        indexed_positions = []
+        for index, result in enumerate(self.searchresults):
+            line, col = result
+            result_pos = self.text.XYToPosition(col, line)
+            indexed_positions.append((index, result_pos))
+
+        if forward:
+            for index, result_pos in indexed_positions:
+                if result_pos > caret_pos:
+                    return index
+            return indexed_positions[0][0]
+
+        for index, result_pos in reversed(indexed_positions):
+            if result_pos < caret_pos:
+                return index
+        return indexed_positions[-1][0]
 
     def on_find_close(self, event):
         dlg = getattr(self, "dlg", None)
@@ -4297,12 +4326,7 @@ class scriptmanager_mainwindow(wx.Frame):
             ui.message(msg)
             return
 
-        if self.current_error_index < 0:
-            self.current_error_index = 0
-        else:
-            self.current_error_index += 1
-            if self.current_error_index >= len(self.errors):
-                self.current_error_index = 0
+        self.current_error_index = self._get_error_index_from_caret(forward=True)
 
         self._goto_error(self.current_error_index)
 
@@ -4324,14 +4348,38 @@ class scriptmanager_mainwindow(wx.Frame):
             ui.message(msg)
             return
 
-        if self.current_error_index < 0:
-            self.current_error_index = len(self.errors) - 1
-        else:
-            self.current_error_index -= 1
-            if self.current_error_index < 0:
-                self.current_error_index = len(self.errors) - 1
+        self.current_error_index = self._get_error_index_from_caret(forward=False)
 
         self._goto_error(self.current_error_index)
+
+    def _get_error_index_from_caret(self, forward=True):
+        """Return the next/previous error index using current caret line as anchor."""
+        if not getattr(self, "errors", None):
+            return -1
+
+        try:
+            _col, current_line = self._get_line_col_from_position(self.text.GetInsertionPoint())
+        except Exception:
+            current_line = 0
+
+        parsed_errors = []
+        for index, error in enumerate(self.errors):
+            try:
+                error_line = max(0, int(error.get("line", 1)) - 1)
+            except Exception:
+                error_line = 0
+            parsed_errors.append((index, error_line))
+
+        if forward:
+            candidates = [item for item in parsed_errors if item[1] > current_line]
+            if candidates:
+                return min(candidates, key=lambda item: item[1])[0]
+            return min(parsed_errors, key=lambda item: item[1])[0]
+
+        candidates = [item for item in parsed_errors if item[1] < current_line]
+        if candidates:
+            return max(candidates, key=lambda item: item[1])[0]
+        return max(parsed_errors, key=lambda item: item[1])[0]
 
     def OnNextScriptDefinition(self, event):
         """Springt zur nächsten Scriptdefinition (def script_...)."""
