@@ -881,29 +881,54 @@ class insertfunctionsdialog(wx.Dialog):
 class newscriptdialog(wx.Dialog):
     """Dialog for creating a new script or function definition."""
 
-    SCRIPT_CATEGORIES = [
-        _("Miscellaneous"),
-        _("Browse mode"),
-        _("Emulated system keyboard keys"),
-        _("Text review"),
-        _("Object navigation"),
-        _("System caret"),
-        _("Mouse"),
-        _("Speech"),
-        _("Configuration"),
-        _("Configuration profiles"),
-        _("Braille"),
-        _("Vision"),
-        _("Tools"),
-        _("Touch screen"),
-        _("System focus"),
-        _("System status"),
-        _("Input"),
-        _("Document formatting"),
+    SCRIPT_CATEGORY_KEYS = [
+        "Miscellaneous",
+        "Browse mode",
+        "Emulated system keyboard keys",
+        "Text review",
+        "Object navigation",
+        "System caret",
+        "Mouse",
+        "Speech",
+        "Configuration",
+        "Configuration profiles",
+        "Braille",
+        "Vision",
+        "Tools",
+        "Touch screen",
+        "System focus",
+        "System status",
+        "Input",
+        "Document formatting",
     ]
+    SCRIPT_CATEGORIES = [_(categoryKey) for categoryKey in SCRIPT_CATEGORY_KEYS]
     DEFINITION_TYPE_SCRIPT = "script"
     DEFINITION_TYPE_FUNCTION = "function"
     TYPE_CHOICES = ["", "str", "int", "float", "bool", "list", "dict", "tuple", "set", "Any", "None"]
+
+    @classmethod
+    def normalizeCategoryForCode(cls, categoryText):
+        """Return canonical (English) category for known NVDA categories."""
+        categoryText = str(categoryText or "").strip()
+        if not categoryText:
+            return ""
+        for categoryKey in cls.SCRIPT_CATEGORY_KEYS:
+            translatedLabel = _(categoryKey)
+            if categoryText == translatedLabel or categoryText == categoryKey:
+                return categoryKey
+        return categoryText
+
+    @classmethod
+    def localizeCategoryForDisplay(cls, categoryText):
+        """Return localized label for known canonical category values."""
+        categoryText = str(categoryText or "").strip()
+        if not categoryText:
+            return ""
+        for categoryKey in cls.SCRIPT_CATEGORY_KEYS:
+            translatedLabel = _(categoryKey)
+            if categoryText == categoryKey or categoryText == translatedLabel:
+                return translatedLabel
+        return categoryText
 
     def __init__(self, parent, dialogId, title, initialDefinitionType="script", allowDefinitionTypeChange=True):
         super(newscriptdialog, self).__init__(parent, dialogId, title, style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
@@ -1386,7 +1411,7 @@ class newscriptdialog(wx.Dialog):
         else:
             self.script_gesture = ""
             self.script_gestures = list(self.gesture_identifiers)
-        self.script_category = self.category_ctrl.GetValue().strip()
+        self.script_category = self.normalizeCategoryForCode(self.category_ctrl.GetValue())
         self.script_canPropagate = self.can_propagate_ctrl.GetValue()
         self.script_bypassInputHelp = self.bypass_input_help_ctrl.GetValue()
         self.script_allowInSleepMode = self.allow_sleep_mode_ctrl.GetValue()
@@ -1446,7 +1471,7 @@ class newscriptdialog(wx.Dialog):
         category = data.get("category", "")
         if category is not None:
             try:
-                self.category_ctrl.SetValue(category)
+                self.category_ctrl.SetValue(self.localizeCategoryForDisplay(category))
             except Exception:
                 pass
         gestures = data.get("gestures", [])
@@ -3080,7 +3105,8 @@ class scriptmanager_mainwindow(wx.Frame):
             args.append(f'description=_("{safe_description}")')
 
         if category:
-            safe_category = category.replace('"', '\\"')
+            canonical_category = newscriptdialog.normalizeCategoryForCode(category)
+            safe_category = canonical_category.replace('"', '\\"')
             args.append(f'category=_("{safe_category}")')
 
         normalized_gestures = [g for g in gestures if g]
@@ -5072,7 +5098,8 @@ class scriptmanager_mainwindow(wx.Frame):
             safe_desc = description.replace('"', '\"')
             args.append(f'description=_("{safe_desc}")')
         if category:
-            safe_cat = category.replace('"', '\"')
+            canonical_category = newscriptdialog.normalizeCategoryForCode(category)
+            safe_cat = canonical_category.replace('"', '\"')
             args.append(f'category=_("{safe_cat}")')
         normalized = [g for g in (gestures or []) if g]
         if len(normalized) > 1:
