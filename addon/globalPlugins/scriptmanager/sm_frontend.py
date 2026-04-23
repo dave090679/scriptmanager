@@ -3303,6 +3303,21 @@ class scriptmanager_mainwindow(wx.Frame):
             pass
         self.on_find_close(None)
 
+    def _replace_matches_stable(self, matches, find_length, replace_text):
+        """Replace precomputed matches bottom-up to keep offsets stable."""
+        if not matches or find_length <= 0:
+            return 0
+        replaced_count = 0
+        for line, col in sorted(matches, key=lambda item: (item[0], item[1]), reverse=True):
+            try:
+                pos = self.text.XYToPosition(col, line)
+            except Exception:
+                continue
+            self.text.SetSelection(pos, pos + find_length)
+            self.text.ReplaceSelection(replace_text)
+            replaced_count += 1
+        return replaced_count
+
     def on_find(self, event):
         fstring = self._rebuild_search_results()
         if len(self.searchresults) > 0:
@@ -3331,22 +3346,11 @@ class scriptmanager_mainwindow(wx.Frame):
             gui.messageBox(message=_("text not found"), caption=_("find"))
 
     def on_replace(self, event):
-        fstring = self.frdata.FindString  # also from event.GetFindString()
+        fstring = self._rebuild_search_results()
         rstring = self.frdata.ReplaceString
-        wordborder = ""
-        searchflags = 0
-        if self.frdata.Flags & wx.FR_NOMATCHCASE:
-            searchflags = searchflags | re.I
-        if self.frdata.Flags & wx.FR_WHOLEWORD:
-            wordborder = r"\b"
-        self.searchpattern = re.compile(
-            pattern=wordborder + fstring + wordborder, flags=searchflags
-        )
-        self.searchresults = []
-        for line in range(self.text.GetNumberOfLines()):
-            for m in self.searchpattern.finditer(self.text.GetLineText(line)):
-                column = m.start()
-                self.searchresults.append((line, column))
+        if not fstring:
+            gui.messageBox(message=_("text not found"), caption=_("find"))
+            return
         if len(self.searchresults) > 0:
             if hasattr(self, "searchresultindex"):
                 if self.searchresultindex >= len(self.searchresults):
@@ -3372,27 +3376,14 @@ class scriptmanager_mainwindow(wx.Frame):
             gui.messageBox(message=_("text not found"), caption=_("find"))
 
     def on_find_replace_all(self, event):
-        fstring = self.frdata.FindString  # also from event.GetFindString()
+        fstring = self._rebuild_search_results()
         rstring = self.frdata.ReplaceString
-        wordborder = ""
-        searchflags = 0
-        if self.frdata.Flags & wx.FR_NOMATCHCASE:
-            searchflags = searchflags | re.I
-        if self.frdata.Flags & wx.FR_WHOLEWORD:
-            wordborder = r"\b"
-        self.searchpattern = re.compile(
-            pattern=wordborder + fstring + wordborder, flags=searchflags
-        )
-        self.searchresults = []
-        for line in range(self.text.GetNumberOfLines()):
-            for m in self.searchpattern.finditer(self.text.GetLineText(line)):
-                column = m.start()
-                self.searchresults.append((line, column))
+        if not fstring:
+            gui.messageBox(message=_("text not found"), caption=_("find"))
+            return
         if len(self.searchresults) > 0:
-            for r in self.searchresults:
-                pos = self.text.XYToPosition(r[1], r[0])
-                self.text.Remove(pos, pos + len(fstring))
-                self.text.WriteText(rstring)
+            self._replace_matches_stable(self.searchresults, len(fstring), rstring)
+            self._rebuild_search_results()
         else:
             gui.messageBox(message=_("text not found"), caption=_("find"))
 
