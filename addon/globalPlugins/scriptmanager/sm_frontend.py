@@ -1499,6 +1499,7 @@ class newscriptdialog(wx.Dialog):
             val = data.get(key)
             if val is not None:
                 try:
+                    
                     ctrl = getattr(self, ctrl_name)
                     ctrl.SetValue(bool(val))
                 except Exception:
@@ -2216,6 +2217,16 @@ class EditorSettingsDialog(wx.Dialog):
 
 class scriptmanager_mainwindow(wx.Frame):
 
+    ID_OPEN_FILE = 101
+    ID_SAVE_FILE = 102
+    ID_SAVE_AS_FILE = 103
+    ID_BUILD_ADDON = 104
+    ID_QUIT = 105
+    ID_CLOSE_FILE = 106
+    ID_NEXT_TAB = 107
+    ID_PREVIOUS_TAB = 108
+    TAB_MENU_ID_BASE = 8000
+
     SCRATCHPAD_REQUIRED_MENU_IDS = (104, 111, 112, 113, 114, 115)
     _SCRATCHPAD_SUBDIR_BY_FILE_TYPE = {
         "appModule": "appModules",
@@ -2245,6 +2256,16 @@ class scriptmanager_mainwindow(wx.Frame):
     def __init__(self, parent, frameId, title, scriptfile):
         wx.Frame.__init__(self, parent, frameId, title)
         self._base_window_title = title or _("NVDA Script Manager")
+        self._single_state = {
+            "last_name_saved": "",
+            "modify": False,
+            "_current_file_type": "empty",
+            "defaultdir": "",
+            "defaultfile": _("untitled") + ".py",
+            "errors": [],
+            "current_error_index":-1,
+            "replace": False,
+        }
 
         menubar = wx.MenuBar()
         self.StatusBar()
@@ -2252,17 +2273,19 @@ class scriptmanager_mainwindow(wx.Frame):
         filenew = wx.Menu()
         edit = wx.Menu()
         scripts = wx.Menu()
+        tabsMenu = wx.Menu()
         # view = wx.Menu()
         helpMenu = wx.Menu()
         filemenu.AppendSubMenu(filenew, _("&new"))
-        filemenu.Append(101, _("&Open\tctrl+o"), _("Open an appmodule"))
-        filemenu.Append(102, _("&Save\tctrl+s"), _("Save the appmodule"))
+        filemenu.Append(self.ID_OPEN_FILE, _("&Open\tctrl+o"), _("Open an appmodule"))
+        filemenu.Append(self.ID_SAVE_FILE, _("&Save\tctrl+s"), _("Save the appmodule"))
         filemenu.Append(
-            103, _("Save &as...\tctrl+shift+s"), _("Save the module as a new file"))
-        filemenu.Append(104, _("&build add-on..."), _("Create a distributable add-on from scratchpad contents"))
+            self.ID_SAVE_AS_FILE, _("Save &as...\tctrl+shift+s"), _("Save the module as a new file"))
+        filemenu.Append(self.ID_CLOSE_FILE, _("&Close file\tctrl+f4"), _("Close the current file tab"))
+        filemenu.Append(self.ID_BUILD_ADDON, _("&build add-on..."), _("Create a distributable add-on from scratchpad contents"))
         filemenu.AppendSeparator()
         quitItem = wx.MenuItem(
-            filemenu, 105, _("&Quit\tAlt+F4"), _("Quit the Application"))
+            filemenu, self.ID_QUIT, _("&Quit\tAlt+F4"), _("Quit the Application"))
         filemenu.AppendItem(quitItem)
         filenew.Append(110, _("&empty file\tctrl+n"))
         filenew.Append(111, _("&appmodule"))
@@ -2357,24 +2380,43 @@ class scriptmanager_mainwindow(wx.Frame):
         menubar.Append(filemenu, _("&File"))
         menubar.Append(edit, _("&Edit"))
         menubar.Append(scripts, _('&Scripts'))
+        menubar.Append(tabsMenu, _("&Tabs"))
         menubar.Append(helpMenu, _("&Help"))
+        self.tabsMenu = tabsMenu
         self.SetMenuBar(menubar)
         self.Centre()
-        self.Bind(wx.EVT_MENU, self.OnQuit, id=105)
+        self.Bind(wx.EVT_MENU, self.OnQuit, id=self.ID_QUIT)
+        self.Bind(wx.EVT_MENU, self.OnCloseFile, id=self.ID_CLOSE_FILE)
         self.Bind(wx.EVT_MENU, self.OnNewEmptyFile, id=110)
         self.Bind(wx.EVT_MENU, self.OnNewAppModule, id=111)
         self.Bind(wx.EVT_MENU, self.OnNewGlobalPlugin, id=112)
         self.Bind(wx.EVT_MENU, self.OnNewBrailleDisplayDriver, id=113)
         self.Bind(wx.EVT_MENU, self.OnNewSynthDriver, id=114)
         self.Bind(wx.EVT_MENU, self.OnNewVisionEnhancementProvider, id=115)
-        self.Bind(wx.EVT_MENU, self.OnOpenFile, id=101)
-        self.Bind(wx.EVT_MENU, self.OnSaveFile, id=102)
-        self.Bind(wx.EVT_MENU, self.OnSaveAsFile, id=103)
+        self.Bind(wx.EVT_MENU, self.OnOpenFile, id=self.ID_OPEN_FILE)
+        self.Bind(wx.EVT_MENU, self.OnSaveFile, id=self.ID_SAVE_FILE)
+        self.Bind(wx.EVT_MENU, self.OnSaveAsFile, id=self.ID_SAVE_AS_FILE)
+        self.Bind(wx.EVT_MENU, self.OnNextTab, id=self.ID_NEXT_TAB)
+        self.Bind(wx.EVT_MENU, self.OnPreviousTab, id=self.ID_PREVIOUS_TAB)
+        self.Bind(wx.EVT_MENU, self.OnSelectTabFromMenu, id=self.TAB_MENU_ID_BASE, id2=self.TAB_MENU_ID_BASE + 999)
         self.SetAcceleratorTable(
             wx.AcceleratorTable(
                 [
-                    (wx.ACCEL_CTRL, ord("S"), 102),
-                    (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("S"), 103),
+                    (wx.ACCEL_CTRL, ord("S"), self.ID_SAVE_FILE),
+                    (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("S"), self.ID_SAVE_AS_FILE),
+                    (wx.ACCEL_CTRL, wx.WXK_F4, self.ID_CLOSE_FILE),
+                    (wx.ACCEL_CTRL, wx.WXK_TAB, self.ID_NEXT_TAB),
+                    (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_TAB, self.ID_PREVIOUS_TAB),
+                    (wx.ACCEL_ALT, ord("1"), self._get_tab_menu_id_for_index(0)),
+                    (wx.ACCEL_ALT, ord("2"), self._get_tab_menu_id_for_index(1)),
+                    (wx.ACCEL_ALT, ord("3"), self._get_tab_menu_id_for_index(2)),
+                    (wx.ACCEL_ALT, ord("4"), self._get_tab_menu_id_for_index(3)),
+                    (wx.ACCEL_ALT, ord("5"), self._get_tab_menu_id_for_index(4)),
+                    (wx.ACCEL_ALT, ord("6"), self._get_tab_menu_id_for_index(5)),
+                    (wx.ACCEL_ALT, ord("7"), self._get_tab_menu_id_for_index(6)),
+                    (wx.ACCEL_ALT, ord("8"), self._get_tab_menu_id_for_index(7)),
+                    (wx.ACCEL_ALT, ord("9"), self._get_tab_menu_id_for_index(8)),
+                    (wx.ACCEL_ALT, ord("0"), self._get_tab_menu_id_for_index(9)),
                     (wx.ACCEL_CTRL, ord("I"), 206),
                     (wx.ACCEL_CTRL, ord("R"), 213),
                     (wx.ACCEL_CTRL, ord("W"), 214),
@@ -2388,7 +2430,7 @@ class scriptmanager_mainwindow(wx.Frame):
                 ]
             )
         )
-        self.Bind(wx.EVT_MENU, self.OnCreateAddon, id=104)
+        self.Bind(wx.EVT_MENU, self.OnCreateAddon, id=self.ID_BUILD_ADDON)
         self.Bind(wx.EVT_MENU, self.OnUndo, id=200)
         self.Bind(wx.EVT_MENU, self.OnRedo, id=212)
         self.Bind(wx.EVT_MENU, self.OnCut, id=201)
@@ -2432,31 +2474,33 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
         self.Bind(wx.EVT_ACTIVATE, self._onWindowActivate)
         self.Bind(wx.EVT_MENU_OPEN, self._onMenuOpen)
-        self.text = wx.TextCtrl(
-            parent=self,
-            id=1000,
-            value="",
-            size=(-1, -1),
-            style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER | wx.TE_DONTWRAP,
+        self.notebook = wx.Notebook(self, id=1001)
+        self.notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self._onNotebookPageChanged)
+        self.text = self._create_editor_control()
+        self.notebook.AddPage(self.text, _("untitled"), True)
+        self._initialize_editor_state(
+            self.text,
+            file_path="",
+            file_type="empty",
+            default_dir=self._get_default_file_dialog_dir(),
+            default_file=_("untitled") + ".py",
         )
-        # Capture shortcuts while editor has focus (e.g. Alt+Enter / F4).
-        self.text.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
-        self.text.Bind(wx.EVT_KEY_UP, self.OnTextCaretChanged)
-        self.text.Bind(wx.EVT_LEFT_UP, self.OnTextCaretChanged)
-        self.text.Bind(wx.EVT_SET_FOCUS, self.OnTextCaretChanged)
-        self.text.Bind(wx.EVT_TEXT, self.OnTextChanged)
-        self.last_name_saved = ""
-        self._current_file_type = "empty"
-        self.defaultdir = self._get_default_file_dialog_dir()
-        self.defaultfile = _("untitled") + ".py"
         if scriptfile != "":
             self.text.LoadFile(scriptfile)
-            self.last_name_saved = scriptfile
-            self._current_file_type = self._detect_file_type_from_path(scriptfile)
-            self.defaultdir = os.path.dirname(scriptfile)
-            self.defaultfile = os.path.basename(scriptfile)
+            self._initialize_editor_state(
+                self.text,
+                file_path=scriptfile,
+                file_type=self._detect_file_type_from_path(scriptfile),
+                default_dir=os.path.dirname(scriptfile),
+                default_file=os.path.basename(scriptfile),
+            )
+            self.text.SetModified(False)
         self.modify = False
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(self.notebook, 1, wx.EXPAND)
+        self.SetSizer(sizer)
         self._update_window_title()
+        self._update_tab_label(self.text)
         self.text.SelectNone()
         self.text.SetFocus()
         self._update_caret_status()
@@ -2469,6 +2513,409 @@ class scriptmanager_mainwindow(wx.Frame):
         # Aktiviere Error Logging für das aktuelle Script
         sm_backend.activate_error_logging(scriptfile if scriptfile else None)
         self._update_scratchpad_required_menu_state()
+        self._rebuild_tabs_menu()
+
+    def _create_editor_control(self):
+        text_ctrl = wx.TextCtrl(
+            parent=self.notebook,
+            id=wx.ID_ANY,
+            value="",
+            size=(-1, -1),
+            style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER | wx.TE_DONTWRAP,
+        )
+        # Capture shortcuts while editor has focus (e.g. Alt+Enter / F4).
+        text_ctrl.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+        text_ctrl.Bind(wx.EVT_KEY_UP, self.OnTextCaretChanged)
+        text_ctrl.Bind(wx.EVT_LEFT_UP, self.OnTextCaretChanged)
+        text_ctrl.Bind(wx.EVT_SET_FOCUS, self.OnTextCaretChanged)
+        text_ctrl.Bind(wx.EVT_TEXT, self.OnTextChanged)
+        return text_ctrl
+
+    def _get_next_unsaved_default_file_name(self, requested_name=""):
+        requested = os.path.basename(str(requested_name or _("untitled") + ".py"))
+        base_name, extension = os.path.splitext(requested)
+        extension = extension or ".py"
+        untitled_base = _("untitled")
+
+        used_names = set()
+        notebook = getattr(self, "notebook", None)
+        if notebook is not None:
+            for index in range(notebook.GetPageCount()):
+                editor = notebook.GetPage(index)
+                state = getattr(editor, "_sm_state", None) or {}
+                if state.get("last_name_saved"):
+                    continue
+                used_name = os.path.basename(str(state.get("defaultfile") or "")).lower()
+                if used_name:
+                    used_names.add(used_name)
+
+        if base_name == untitled_base:
+            pattern = re.compile(
+                r"^{base}(?: (\\d+))?{ext}$".format(
+                    base=re.escape(untitled_base.lower()),
+                    ext=re.escape(extension.lower()),
+                )
+            )
+            next_index = 1
+            for used_name in used_names:
+                match = pattern.match(used_name)
+                if not match:
+                    continue
+                used_index = int(match.group(1) or "1")
+                next_index = max(next_index, used_index + 1)
+            return "{base} {index}{ext}".format(
+                base=untitled_base,
+                index=next_index,
+                ext=extension,
+            )
+
+        if requested.lower() not in used_names:
+            return requested
+
+        suffix = 2
+        while True:
+            candidate = "{base} {index}{ext}".format(
+                base=base_name,
+                index=suffix,
+                ext=extension,
+            )
+            if candidate.lower() not in used_names:
+                return candidate
+            suffix += 1
+
+    def _initialize_editor_state(self, editor, file_path="", file_type="empty", default_dir="", default_file=""):
+        default_file_name = default_file or _("untitled") + ".py"
+        if not file_path:
+            default_file_name = self._get_next_unsaved_default_file_name(default_file_name)
+        editor._sm_state = {
+            "last_name_saved": file_path or "",
+            "modify": False,
+            "_current_file_type": file_type or "empty",
+            "defaultdir": default_dir or self._get_default_file_dialog_dir(),
+            "defaultfile": default_file_name,
+            "errors": [],
+            "current_error_index":-1,
+            "replace": False,
+        }
+
+    def _get_active_editor(self):
+        notebook = getattr(self, "notebook", None)
+        if notebook and notebook.GetPageCount() > 0:
+            page = notebook.GetCurrentPage()
+            if page is not None:
+                return page
+        return getattr(self, "text", None)
+
+    def _get_active_editor_state(self):
+        editor = self._get_active_editor()
+        if editor is not None and hasattr(editor, "_sm_state"):
+            return editor._sm_state
+        return self._single_state
+
+    def _get_state_value(self, key, default=None):
+        return self._get_active_editor_state().get(key, default)
+
+    def _set_state_value(self, key, value):
+        self._get_active_editor_state()[key] = value
+
+    @property
+    def last_name_saved(self):
+        return self._get_state_value("last_name_saved", "")
+
+    @last_name_saved.setter
+    def last_name_saved(self, value):
+        self._set_state_value("last_name_saved", value or "")
+
+    @property
+    def modify(self):
+        return bool(self._get_state_value("modify", False))
+
+    @modify.setter
+    def modify(self, value):
+        self._set_state_value("modify", bool(value))
+
+    @property
+    def _current_file_type(self):
+        return self._get_state_value("_current_file_type", "empty")
+
+    @_current_file_type.setter
+    def _current_file_type(self, value):
+        self._set_state_value("_current_file_type", value or "empty")
+
+    @property
+    def defaultdir(self):
+        return self._get_state_value("defaultdir", self._get_default_file_dialog_dir())
+
+    @defaultdir.setter
+    def defaultdir(self, value):
+        self._set_state_value("defaultdir", value or self._get_default_file_dialog_dir())
+
+    @property
+    def defaultfile(self):
+        return self._get_state_value("defaultfile", _("untitled") + ".py")
+
+    @defaultfile.setter
+    def defaultfile(self, value):
+        self._set_state_value("defaultfile", value or _("untitled") + ".py")
+
+    @property
+    def errors(self):
+        return self._get_state_value("errors", [])
+
+    @errors.setter
+    def errors(self, value):
+        self._set_state_value("errors", list(value) if value else [])
+
+    @property
+    def current_error_index(self):
+        return int(self._get_state_value("current_error_index", -1))
+
+    @current_error_index.setter
+    def current_error_index(self, value):
+        self._set_state_value("current_error_index", int(value))
+
+    @property
+    def replace(self):
+        return bool(self._get_state_value("replace", False))
+
+    @replace.setter
+    def replace(self, value):
+        self._set_state_value("replace", bool(value))
+
+    def _get_editor_title_filename(self, editor):
+        state = getattr(editor, "_sm_state", self._single_state)
+        if state.get("last_name_saved"):
+            file_name = os.path.basename(state["last_name_saved"])
+            label, _extension = os.path.splitext(file_name)
+            return label or file_name
+        default_name = os.path.basename(str(state.get("defaultfile") or ""))
+        if default_name:
+            label, _extension = os.path.splitext(default_name)
+            return label or default_name
+        return _("untitled")
+
+    def _update_tab_label(self, editor):
+        if not hasattr(self, "notebook"):
+            return
+        try:
+            page_index = self.notebook.GetPageIndex(editor)
+        except Exception:
+            page_index = -1
+        if page_index < 0:
+            return
+        label = self._get_editor_title_filename(editor)
+        if editor.IsModified():
+            label = "* " + label
+        self.notebook.SetPageText(page_index, label)
+
+    def _get_tab_shortcut_suffix(self, index):
+        if 0 <= index <= 8:
+            return "\tAlt+{n}".format(n=index + 1)
+        if index == 9:
+            return "\tAlt+0"
+        return ""
+
+    def _get_tab_menu_id_for_index(self, index):
+        return self.TAB_MENU_ID_BASE + int(index)
+
+    def _rebuild_tabs_menu(self):
+        if not hasattr(self, "tabsMenu") or self.tabsMenu is None:
+            return
+        for item in list(self.tabsMenu.GetMenuItems()):
+            self.tabsMenu.DestroyItem(item)
+
+        page_count = self.notebook.GetPageCount() if hasattr(self, "notebook") else 0
+        if page_count <= 0:
+            no_tabs_item = self.tabsMenu.Append(wx.ID_ANY, _("(no open files)"))
+            no_tabs_item.Enable(False)
+            return
+
+        current_selection = self.notebook.GetSelection()
+        for index in range(page_count):
+            editor = self.notebook.GetPage(index)
+            label = self._get_editor_title_filename(editor)
+            label += self._get_tab_shortcut_suffix(index)
+            menu_item = self.tabsMenu.Append(self._get_tab_menu_id_for_index(index), label)
+            if index == current_selection:
+                menu_item.SetItemLabel(_("{label} (current)").format(label=label))
+
+    def _onNotebookPageChanged(self, event):
+        self.text = self._get_active_editor()
+        self._update_window_title()
+        self._update_caret_status()
+        self._update_edit_menu_state()
+        self._rebuild_tabs_menu()
+        event.Skip()
+
+    def _find_tab_index_by_path(self, path):
+        normalized_target = os.path.abspath(str(path or ""))
+        if not normalized_target:
+            return -1
+        for index in range(self.notebook.GetPageCount()):
+            editor = self.notebook.GetPage(index)
+            state = getattr(editor, "_sm_state", None) or {}
+            saved_path = str(state.get("last_name_saved") or "")
+            if saved_path and os.path.abspath(saved_path) == normalized_target:
+                return index
+        return -1
+
+    def _open_file_in_new_tab(self, path):
+        existing_index = self._find_tab_index_by_path(path)
+        if existing_index >= 0:
+            self.notebook.SetSelection(existing_index)
+            self.text = self._get_active_editor()
+            self.text.SetFocus()
+            self._update_window_title()
+            return False
+
+        current_editor = self._get_active_editor()
+        current_state = getattr(current_editor, "_sm_state", None) or {}
+        can_reuse_current = (
+            self.notebook.GetPageCount() == 1
+            and current_editor is not None
+            and not current_editor.IsModified()
+            and not str(current_state.get("last_name_saved") or "")
+            and not current_editor.GetValue()
+        )
+        if can_reuse_current:
+            current_editor.LoadFile(path)
+            self._initialize_editor_state(
+                current_editor,
+                file_path=path,
+                file_type=self._detect_file_type_from_path(path),
+                default_dir=os.path.dirname(path),
+                default_file=os.path.basename(path),
+            )
+            current_editor.SetModified(False)
+            self.text = current_editor
+            self.modify = False
+            self.text.SetSelection(0, 0)
+            self._update_tab_label(current_editor)
+            self._update_window_title()
+            self._update_caret_status()
+            self._rebuild_tabs_menu()
+            self.text.SetFocus()
+            return True
+
+        editor = self._create_editor_control()
+        editor.LoadFile(path)
+        self._initialize_editor_state(
+            editor,
+            file_path=path,
+            file_type=self._detect_file_type_from_path(path),
+            default_dir=os.path.dirname(path),
+            default_file=os.path.basename(path),
+        )
+        editor.SetModified(False)
+        self.notebook.AddPage(editor, os.path.basename(path), True)
+        self.text = editor
+        self.modify = False
+        self.text.SetSelection(0, 0)
+        self._update_tab_label(editor)
+        self._update_window_title()
+        self._update_caret_status()
+        self._rebuild_tabs_menu()
+        self.text.SetFocus()
+        return True
+
+    def _ensure_empty_tab_if_needed(self):
+        if self.notebook.GetPageCount() > 0:
+            return
+        self.text = self._create_editor_control()
+        self.notebook.AddPage(self.text, _("untitled"), True)
+        self._initialize_editor_state(
+            self.text,
+            file_path="",
+            file_type="empty",
+            default_dir=self._get_default_file_dialog_dir(),
+            default_file=_("untitled") + ".py",
+        )
+        self._update_tab_label(self.text)
+
+    def _create_new_editor_tab(self, file_type="empty", default_file=None, content=""):
+        editor = self._create_editor_control()
+        self._initialize_editor_state(
+            editor,
+            file_path="",
+            file_type=file_type,
+            default_dir=self._get_default_dir_for_file_type(file_type),
+            default_file=default_file or _("untitled") + ".py",
+        )
+        self.notebook.AddPage(editor, self._get_editor_title_filename(editor), True)
+        self.text = editor
+        if content:
+            self.text.SetValue(content)
+        else:
+            self.text.SetModified(False)
+            self.modify = False
+        self.text.SetSelection(0, 0)
+        self._update_tab_label(editor)
+        self._update_window_title()
+        self._update_caret_status()
+        self._rebuild_tabs_menu()
+        self.text.SetFocus()
+        return editor
+
+    def _confirm_save_for_active_tab(self, event=None):
+        if not self._has_unsaved_changes():
+            return True
+        file_name = self._get_current_title_filename()
+        dlg = wx.MessageDialog(
+            self,
+            _("Save changes to {name}?").format(name=file_name),
+            "",
+            wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION,
+        )
+        val = dlg.ShowModal()
+        dlg.Destroy()
+        if val == wx.ID_YES:
+            return bool(self.OnSaveFile(event))
+        if val == wx.ID_CANCEL:
+            return False
+        return True
+
+    def _close_active_tab(self, event=None):
+        if not self._confirm_save_for_active_tab(event):
+            return False
+        selection = self.notebook.GetSelection()
+        if selection < 0:
+            return True
+        self.notebook.DeletePage(selection)
+        self._ensure_empty_tab_if_needed()
+        self.text = self._get_active_editor()
+        self._update_window_title()
+        self._update_caret_status()
+        self._rebuild_tabs_menu()
+        if self.text is not None:
+            self.text.SetFocus()
+        return True
+
+    def OnCloseFile(self, event):
+        self._close_active_tab(event)
+
+    def OnNextTab(self, event):
+        page_count = self.notebook.GetPageCount()
+        if page_count <= 1:
+            return
+        current = self.notebook.GetSelection()
+        self.notebook.SetSelection((current + 1) % page_count)
+
+    def OnPreviousTab(self, event):
+        page_count = self.notebook.GetPageCount()
+        if page_count <= 1:
+            return
+        current = self.notebook.GetSelection()
+        self.notebook.SetSelection((current - 1) % page_count)
+
+    def OnSelectTabFromMenu(self, event):
+        menu_id = event.GetId()
+        index = int(menu_id) - self.TAB_MENU_ID_BASE
+        if index < 0:
+            return
+        if index >= self.notebook.GetPageCount():
+            wx.Bell()
+            return
+        self.notebook.SetSelection(index)
 
     def _has_unsaved_changes(self):
         try:
@@ -2495,6 +2942,8 @@ class scriptmanager_mainwindow(wx.Frame):
         dirty_prefix = "* " if self._has_unsaved_changes() else ""
         title_file_name = self._get_current_title_filename()
         title_file_type = self._get_current_title_file_type_label()
+        if hasattr(self, "text") and self.text is not None:
+            self._update_tab_label(self.text)
         if title_file_type:
             self.SetTitle(f"{dirty_prefix}{title_file_type}: {title_file_name} - {self._base_window_title}")
             return
@@ -2543,6 +2992,7 @@ class scriptmanager_mainwindow(wx.Frame):
     def _onMenuOpen(self, event):
         self._update_scratchpad_required_menu_state()
         self._update_edit_menu_state()
+        self._rebuild_tabs_menu()
         event.Skip()
 
     def _update_edit_menu_state(self):
@@ -2689,24 +3139,10 @@ class scriptmanager_mainwindow(wx.Frame):
         return reverse_map.get(top_level, "empty")
 
     def OnNewEmptyFile(self, event):
-        self._set_new_file_context("empty", _("untitled") + ".py")
-        if self.text.IsModified and self.text.GetValue():
-            dlg = wx.MessageDialog(
-                self,
-                _("Save changes?"),
-                "",
-                wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION,
-            )
-            val = dlg.ShowModal()
-            if val == wx.ID_YES:
-                self.OnSaveFile(event)
-                self.DoNewEmptyFile()
-            elif val == wx.ID_CANCEL:
-                dlg.Destroy()
-            else:
-                self.DoNewEmptyFile()
-        else:
-            self.DoNewEmptyFile()
+        self._create_new_editor_tab(
+            file_type="empty",
+            default_file=_("untitled") + ".py",
+        )
 
     def OnNewAppModule(self, event):
         if not self._ensure_scratchpad_for_action(_("Creating appModules requires scratchpad.")):
@@ -2714,33 +3150,11 @@ class scriptmanager_mainwindow(wx.Frame):
         appmodule_name = self._choose_appmodule_name_for_new_file()
         if appmodule_name is None:
             return
-        self._set_new_file_context("appModule", appmodule_name + ".py")
-        if self.text.IsModified and self.text.GetValue():
-            dlg = wx.MessageDialog(
-                self,
-                _("Save changes?"),
-                "",
-                wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION,
-            )
-            val = dlg.ShowModal()
-            if val == wx.ID_YES:
-                self.OnSaveFile(event)
-                self.DoNewEmptyFile()
-                self.text.SetValue(
-                    sm_backend.createnewmodule("appModule", appmodule_name, False)
-                )
-            elif val == wx.ID_CANCEL:
-                dlg.Destroy()
-            else:
-                self.DoNewEmptyFile()
-                self.text.SetValue(
-                    sm_backend.createnewmodule("appModule", appmodule_name, False)
-                )
-        else:
-            self.DoNewEmptyFile()
-            self.text.SetValue(
-                sm_backend.createnewmodule("appModule", appmodule_name, False)
-            )
+        self._create_new_editor_tab(
+            file_type="appModule",
+            default_file=appmodule_name + ".py",
+            content=sm_backend.createnewmodule("appModule", appmodule_name, False),
+        )
 
     def _normalize_appmodule_name(self, name):
         normalized = re.sub(r"[^A-Za-z0-9_]", "_", str(name or "").strip())
@@ -2777,141 +3191,46 @@ class scriptmanager_mainwindow(wx.Frame):
     def OnNewGlobalPlugin(self, event):
         if not self._ensure_scratchpad_for_action(_("Creating global plugins requires scratchpad.")):
             return
-        self._set_new_file_context("globalPlugin", _("untitled") + ".py")
-        if self.text.IsModified and self.text.GetValue():
-            dlg = wx.MessageDialog(
-                self,
-                _("Save changes?"),
-                "",
-                wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION,
-            )
-            val = dlg.ShowModal()
-            if val == wx.ID_YES:
-                self.OnSaveFile(event)
-                self.DoNewEmptyFile()
-                self.text.SetValue(
-                    sm_backend.createnewmodule("globalPlugin", _("untitled"), False)
-                )
-            elif val == wx.ID_CANCEL:
-                dlg.Destroy()
-            else:
-                self.DoNewEmptyFile()
-                self.text.SetValue(
-                    sm_backend.createnewmodule("globalPlugin", _("untitled"), False)
-                )
-        else:
-            self.DoNewEmptyFile()
-            self.text.SetValue(
-                sm_backend.createnewmodule("globalPlugin", _("untitled"), False)
-            )
+        self._create_new_editor_tab(
+            file_type="globalPlugin",
+            default_file=_("untitled") + ".py",
+            content=sm_backend.createnewmodule("globalPlugin", _("untitled"), False),
+        )
 
     def OnNewBrailleDisplayDriver(self, event):
         if not self._ensure_scratchpad_for_action(_("Creating braille display drivers requires scratchpad.")):
             return
-        self._set_new_file_context("brailleDisplayDriver", _("untitled") + ".py")
-        if self.text.IsModified and self.text.GetValue():
-            dlg = wx.MessageDialog(
-                self,
-                _("Save changes?"),
-                "",
-                wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION,
-            )
-            val = dlg.ShowModal()
-            if val == wx.ID_YES:
-                self.OnSaveFile(event)
-                self.DoNewEmptyFile()
-                self.text.SetValue(
-                    sm_backend.createnewmodule(
-                        "brailleDisplayDriver", _("untitled"), False
-                    )
-                )
-            elif val == wx.ID_CANCEL:
-                dlg.Destroy()
-            else:
-                self.DoNewEmptyFile()
-                self.text.SetValue(
-                    sm_backend.createnewmodule(
-                        "brailleDisplayDriver", _("untitled"), False
-                    )
-                )
-        else:
-            self.DoNewEmptyFile()
-            self.text.SetValue(
-                sm_backend.createnewmodule("brailleDisplayDriver", _("untitled"), False)
-            )
+        self._create_new_editor_tab(
+            file_type="brailleDisplayDriver",
+            default_file=_("untitled") + ".py",
+            content=sm_backend.createnewmodule("brailleDisplayDriver", _("untitled"), False),
+        )
 
     def OnNewSynthDriver(self, event):
         if not self._ensure_scratchpad_for_action(_("Creating synth drivers requires scratchpad.")):
             return
-        self._set_new_file_context("synthDriver", _("untitled") + ".py")
-        if self.text.IsModified and self.text.GetValue():
-            dlg = wx.MessageDialog(
-                self,
-                _("Save changes?"),
-                "",
-                wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION,
-            )
-            val = dlg.ShowModal()
-            if val == wx.ID_YES:
-                self.OnSaveFile(event)
-                self.DoNewEmptyFile()
-                self.text.SetValue(
-                    sm_backend.createnewmodule("synthDriver", _("untitled"), False)
-                )
-            elif val == wx.ID_CANCEL:
-                dlg.Destroy()
-            else:
-                self.DoNewEmptyFile()
-                self.text.SetValue(
-                    sm_backend.createnewmodule("synthDriver", _("untitled"), False)
-                )
-        else:
-            self.DoNewEmptyFile()
-            self.text.SetValue(
-                sm_backend.createnewmodule("synthDriver", _("untitled"), False)
-            )
+        self._create_new_editor_tab(
+            file_type="synthDriver",
+            default_file=_("untitled") + ".py",
+            content=sm_backend.createnewmodule("synthDriver", _("untitled"), False),
+        )
 
     def OnNewVisionEnhancementProvider(self, event):
         if not self._ensure_scratchpad_for_action(_("Creating vision enhancement providers requires scratchpad.")):
             return
-        self._set_new_file_context("visionEnhancementProvider", _("untitled") + ".py")
-        if self.text.IsModified and self.text.GetValue():
-            dlg = wx.MessageDialog(
-                self,
-                _("Save changes?"),
-                "",
-                wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION,
-            )
-            val = dlg.ShowModal()
-            if val == wx.ID_YES:
-                self.OnSaveFile(event)
-                self.DoNewEmptyFile()
-                self.text.SetValue(
-                    sm_backend.createnewmodule(
-                        "visionEnhancementProvider", _("untitled"), False
-                    )
-                )
-            elif val == wx.ID_CANCEL:
-                dlg.Destroy()
-            else:
-                self.DoNewEmptyFile()
-                self.text.SetValue(
-                    sm_backend.createnewmodule(
-                        "visionEnhancementProvider", _("untitled"), False
-                    )
-                )
-        else:
-            self.DoNewEmptyFile()
-            self.text.SetValue(
-                sm_backend.createnewmodule(
-                    "visionEnhancementProvider", _("untitled"), False
-                )
-            )
+        self._create_new_editor_tab(
+            file_type="visionEnhancementProvider",
+            default_file=_("untitled") + ".py",
+            content=sm_backend.createnewmodule(
+                "visionEnhancementProvider", _("untitled"), False
+            ),
+        )
 
     def DoNewEmptyFile(self):
-        self.last_name_saved = ""
-        self.text.Clear()
-        self._update_window_title()
+        self._create_new_editor_tab(
+            file_type="empty",
+            default_file=_("untitled") + ".py",
+        )
 
     def OnSettings(self, event):
         dlg = EditorSettingsDialog(self)
@@ -3853,23 +4172,7 @@ class scriptmanager_mainwindow(wx.Frame):
             ui.message(_("Add-on created"))
 
     def OnOpenFile(self, event):
-        if self.text.IsModified and self.text.GetValue():
-            dlg = wx.MessageDialog(
-                self,
-                _("Save changes?"),
-                "",
-                wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION,
-            )
-            val = dlg.ShowModal()
-            if val == wx.ID_YES:
-                self.OnSaveFile(event)
-                self.DoOpenFile()
-            elif val == wx.ID_CANCEL:
-                dlg.Destroy()
-            else:
-                self.DoOpenFile()
-        else:
-            self.DoOpenFile()
+        self.DoOpenFile()
 
     def DoOpenFile(self):
         wcd = (
@@ -3893,18 +4196,9 @@ class scriptmanager_mainwindow(wx.Frame):
         if open_dlg.ShowModal() == wx.ID_OK:
             path = open_dlg.GetDirectory() + os.sep + open_dlg.GetFilename()
             ui.message(path)
-            if self.text.GetLastPosition():
-                self.text.Clear()
-            self.text.LoadFile(path)
-            self.last_name_saved = path
-            self._current_file_type = self._detect_file_type_from_path(path)
-            self.defaultdir = os.path.dirname(path)
-            self.defaultfile = os.path.basename(path)
-            self.modify = False
-            self.text.SetSelection(0, 0)
-            self._update_window_title()
-            # Automatische Fehlerprüfung beim Laden
-            wx.CallAfter(self._check_errors_on_load)
+            if self._open_file_in_new_tab(path):
+                # Automatische Fehlerprüfung beim Laden
+                wx.CallAfter(self._check_errors_on_load)
         open_dlg.Destroy()
 
     def OnSaveFile(self, event):
@@ -3919,6 +4213,8 @@ class scriptmanager_mainwindow(wx.Frame):
                 )
                 self.statusbar.SetStatusText("", 1)
                 self.modify = False
+                self.text.SetModified(False)
+                self._update_tab_label(self.text)
                 self._update_window_title()
                 return True
             except Exception as error:
@@ -3964,6 +4260,8 @@ class scriptmanager_mainwindow(wx.Frame):
                 self.statusbar.SetStatusText(os.path.basename(path) + " " + _("saved"), 0)
                 self.statusbar.SetStatusText("", 1)
                 self.modify = False
+                self.text.SetModified(False)
+                self._update_tab_label(self.text)
                 self._update_window_title()
                 return True
             except Exception as error:
@@ -4004,6 +4302,7 @@ class scriptmanager_mainwindow(wx.Frame):
         self.statusbar.SetStatusText(_(" modified"), 1)
         self._update_caret_status()
         self.modify = True
+        self._update_tab_label(self.text)
         self._update_window_title()
         event.Skip()
 
@@ -4186,6 +4485,15 @@ class scriptmanager_mainwindow(wx.Frame):
     def OnKeyDown(self, event):
         keycode = event.GetKeyCode()
         numpad_enter = getattr(wx, "WXK_NUMPAD_ENTER", -1)
+        if event.ControlDown() and keycode == wx.WXK_TAB:
+            if event.ShiftDown():
+                self.OnPreviousTab(None)
+            else:
+                self.OnNextTab(None)
+            return
+        if event.ControlDown() and keycode == wx.WXK_F4:
+            self.OnCloseFile(None)
+            return
         if event.ControlDown() and keycode in (ord("I"), ord("i")):
             if self._is_find_replace_dialog_active():
                 event.Skip()
@@ -5511,20 +5819,10 @@ class scriptmanager_mainwindow(wx.Frame):
         self.OnCheckErrors(event)
 
     def OnQuit(self, event):
-        if self.modify:
-            dlg = wx.MessageDialog(
-                self,
-                _("Save before Exit?"),
-                "",
-                wx.YES_NO | wx.YES_DEFAULT | wx.CANCEL | wx.ICON_QUESTION,
-            )
-            val = dlg.ShowModal()
-            if val == wx.ID_YES:
-                self.OnSaveFile(event)
-                self.Close()
-            elif val == wx.ID_CANCEL:
-                dlg.Destroy()
-            else:
-                self.Close()
-        else:
-            self.Close()
+        page_count = self.notebook.GetPageCount() if hasattr(self, "notebook") else 0
+        for index in range(page_count):
+            self.notebook.SetSelection(index)
+            self.text = self._get_active_editor()
+            if not self._confirm_save_for_active_tab(event):
+                return
+        self.Close()
