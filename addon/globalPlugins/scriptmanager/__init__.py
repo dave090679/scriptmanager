@@ -455,6 +455,34 @@ def _get_scratchpad_appmodule_path(appname, ensure_exists=True):
 	return os.path.join(appmodules_dir, appname + ".py")
 
 
+def _get_scratchpad_appmodule_folder(appname):
+	"""Get the path to the appModule folder if it exists."""
+	if not appname:
+		return None
+	scratchpad_dir = config.getScratchpadDir(False)
+	appmodules_dir = os.path.join(scratchpad_dir, "appModules")
+	folder_path = os.path.join(appmodules_dir, appname)
+	if os.path.isdir(folder_path):
+		return folder_path
+	return None
+
+
+def _get_py_files_from_folder(folder_path):
+	"""Get all .py files from a folder."""
+	if not os.path.isdir(folder_path):
+		return []
+	py_files = []
+	try:
+		for filename in os.listdir(folder_path):
+			if filename.endswith(".py") and not filename.startswith("_"):
+				full_path = os.path.join(folder_path, filename)
+				if os.path.isfile(full_path):
+					py_files.append(full_path)
+	except Exception:
+		pass
+	return sorted(py_files)
+
+
 def _user_appmodule_exists(appname):
 	path = _get_scratchpad_appmodule_path(appname, ensure_exists=False)
 	if path and os.path.isfile(path):
@@ -619,7 +647,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		if load:
 			self.loadappmodule(appname)
 		else:
-			self.loadappmodule("")
+			# Check if there's a folder with .py files to open
+			folder_path = _get_scratchpad_appmodule_folder(appname)
+			if folder_path:
+				self.loadappmodule_with_folder(appname, folder_path)
+			else:
+				self.loadappmodule("")
 
 	# Our plugin should be assigned to the keyboard combination NVDA+Shift+0. This assignment takes place in a dictionary named __gestures__.
 	# and now follows the actual script. The name of the script doesn't quite match the name specified above (the "Script_" is missing, but that's how it should be :-).
@@ -649,6 +682,42 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), userconfigfile)
 		else:
 			frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), '')
+		frame.Show(True)
+		frame.SetPosition(wx.Point(0, 0))
+		frame.SetSize(wx.DisplaySize())
+		if hasattr(frame, "bring_to_foreground"):
+			frame.bring_to_foreground()
+		else:
+			frame.Raise()
+			frame.text.SetFocus()
+
+	def loadappmodule_with_folder(self, appname, folder_path):
+		"""Load multiple Python files from a folder as tabs in the Script Manager."""
+		log.debug(
+			"ScriptManager open requested with folder: appname=%r folder=%r",
+			appname,
+			folder_path,
+		)
+		
+		# Get all .py files from the folder
+		py_files = _get_py_files_from_folder(folder_path)
+		
+		if not py_files:
+			# Folder exists but is empty, open empty window
+			self.loadappmodule("", source="folderEmpty")
+			return
+		
+		# Open the first file to initialize the window
+		frame = sm_frontend.scriptmanager_mainwindow(None, -1, _('NVDA Script Manager'), py_files[0])
+		
+		# Load remaining files as additional tabs
+		for file_path in py_files[1:]:
+			try:
+				if frame._open_file_in_new_tab(file_path):
+					wx.CallAfter(frame._check_errors_on_load)
+			except Exception:
+				pass
+		
 		frame.Show(True)
 		frame.SetPosition(wx.Point(0, 0))
 		frame.SetSize(wx.DisplaySize())

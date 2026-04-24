@@ -2225,6 +2225,7 @@ class scriptmanager_mainwindow(wx.Frame):
     ID_CLOSE_FILE = 106
     ID_NEXT_TAB = 107
     ID_PREVIOUS_TAB = 108
+    ID_SAVE_ALL_FILES = 109
     TAB_MENU_ID_BASE = 8000
 
     SCRATCHPAD_REQUIRED_MENU_IDS = (104, 111, 112, 113, 114, 115)
@@ -2280,7 +2281,9 @@ class scriptmanager_mainwindow(wx.Frame):
         filemenu.Append(self.ID_OPEN_FILE, _("&Open\tctrl+o"), _("Open an appmodule"))
         filemenu.Append(self.ID_SAVE_FILE, _("&Save\tctrl+s"), _("Save the appmodule"))
         filemenu.Append(
-            self.ID_SAVE_AS_FILE, _("Save &as...\tctrl+shift+s"), _("Save the module as a new file"))
+            self.ID_SAVE_ALL_FILES, _("Save &all\tctrl+shift+s"), _("Save all open files with unsaved changes"))
+        filemenu.Append(
+            self.ID_SAVE_AS_FILE, _("Save &as..."), _("Save the module as a new file"))
         filemenu.Append(self.ID_CLOSE_FILE, _("&Close file\tctrl+f4"), _("Close the current file tab"))
         filemenu.Append(self.ID_BUILD_ADDON, _("&build add-on..."), _("Create a distributable add-on from scratchpad contents"))
         filemenu.AppendSeparator()
@@ -2395,6 +2398,7 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnNewVisionEnhancementProvider, id=115)
         self.Bind(wx.EVT_MENU, self.OnOpenFile, id=self.ID_OPEN_FILE)
         self.Bind(wx.EVT_MENU, self.OnSaveFile, id=self.ID_SAVE_FILE)
+        self.Bind(wx.EVT_MENU, self.OnSaveAllFiles, id=self.ID_SAVE_ALL_FILES)
         self.Bind(wx.EVT_MENU, self.OnSaveAsFile, id=self.ID_SAVE_AS_FILE)
         self.Bind(wx.EVT_MENU, self.OnNextTab, id=self.ID_NEXT_TAB)
         self.Bind(wx.EVT_MENU, self.OnPreviousTab, id=self.ID_PREVIOUS_TAB)
@@ -2403,7 +2407,7 @@ class scriptmanager_mainwindow(wx.Frame):
             wx.AcceleratorTable(
                 [
                     (wx.ACCEL_CTRL, ord("S"), self.ID_SAVE_FILE),
-                    (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("S"), self.ID_SAVE_AS_FILE),
+                    (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord("S"), self.ID_SAVE_ALL_FILES),
                     (wx.ACCEL_CTRL, wx.WXK_F4, self.ID_CLOSE_FILE),
                     (wx.ACCEL_CTRL, wx.WXK_TAB, self.ID_NEXT_TAB),
                     (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_TAB, self.ID_PREVIOUS_TAB),
@@ -3060,6 +3064,26 @@ class scriptmanager_mainwindow(wx.Frame):
         item = menuBar.FindItemById(203)
         if item is not None:
             item.Enable(has_clipboard)
+
+        # save all files (109) – only if more than one file has unsaved changes
+        unsaved_file_count = 0
+        try:
+            for index in range(self.notebook.GetPageCount()):
+                editor = self.notebook.GetPage(index)
+                if editor:
+                    try:
+                        if editor.IsModified():
+                            unsaved_file_count += 1
+                    except Exception:
+                        state = getattr(editor, "_sm_state", {})
+                        if state.get("modify", False):
+                            unsaved_file_count += 1
+        except Exception:
+            pass
+        
+        item = menuBar.FindItemById(109)
+        if item is not None:
+            item.Enable(unsaved_file_count > 1)
 
         # next script (224) / previous script (225)
         item = menuBar.FindItemById(224)
@@ -4247,6 +4271,82 @@ class scriptmanager_mainwindow(wx.Frame):
                 return False
         else:
             return self.OnSaveAsFile(event)
+
+    def OnSaveAllFiles(self, event):
+        """Save all open files with unsaved changes."""
+        if self.notebook.GetPageCount() <= 1:
+            # If only one tab, behave like normal save
+            return self.OnSaveFile(event)
+        
+        # Iterate through all tabs and save those with unsaved changes
+        saved_count = 0
+        failed_count = 0
+        
+        for index in range(self.notebook.GetPageCount()):
+            editor = self.notebook.GetPage(index)
+            if not editor:
+                continue
+            
+            # Check if the editor has unsaved changes
+            try:
+                has_changes = editor.IsModified()
+            except Exception:
+                has_changes = getattr(editor, "_sm_state", {}).get("modify", False)
+            
+            if not has_changes:
+                continue
+            
+            # Get the file path for this editor
+            state = getattr(editor, "_sm_state", {})
+            last_name_saved = state.get("last_name_saved", "")
+            
+            if last_name_saved:
+                try:
+                    # Save the file
+                    sm_backend.activate_error_logging(last_name_saved)
+                    editor.SaveFile(last_name_saved)
+                    editor.SetModified(False)
+                    
+                    # Update the tab label
+                    tab_index = self.notebook.GetPageCount()
+                    for i in range(self.notebook.GetPageCount()):
+                        if self.notebook.GetPage(i) is editor:
+                            tab_index = i
+                            break
+                    
+                    if tab_index < self.notebook.GetPageCount():
+                        self.notebook.SetPageText(tab_index, os.path.basename(last_name_saved))
+                    
+                    saved_count += 1
+                except Exception as error:
+                    failed_count += 1
+            else:
+                # File has not been saved with a name, open SaveAs dialog for it
+                # Select the tab first
+                for i in range(self.notebook.GetPageCount()):
+                    if self.notebook.GetPage(i) is editor:
+                        self.notebook.SetSelection(i)
+                        break
+                
+                # Need to save with a name first
+                if not self.OnSaveAsFile(event):
+                    failed_count += 1
+                else:
+                    saved_count += 1
+        
+        # Show result message
+        if failed_count > 0:
+            ui.message(
+                _("Saved {saved} file(s). {failed} file(s) failed or were cancelled.").format(
+                    saved=saved_count, failed=failed_count
+                )
+            )
+        else:
+            ui.message(_("All files saved successfully."))
+        
+        # Update window title
+        self._update_window_title()
+        return True
 
     def OnSaveAsFile(self, event):
         wcd = (

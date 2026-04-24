@@ -973,9 +973,17 @@ msgstr "&speichern\tstrg+s"
 msgid "Save the appmodule"
 msgstr "speichert das Modul"
 
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2282
+msgid "Save &all\tctrl+shift+s"
+msgstr "Alle &speichern\tstrg+Umschalt+S"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:2282
+msgid "Save all open files with unsaved changes"
+msgstr "speichert alle offenen Dateien mit ungespeicherten Änderungen"
+
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:2283
-msgid "Save &as...\tctrl+shift+s"
-msgstr "Speichern &unter...\tstrg+Umschalt+S"
+msgid "Save &as..."
+msgstr "Speichern &unter..."
 
 #: addon/globalPlugins/scriptmanager/sm_frontend.py:2283
 msgid "Save the module as a new file"
@@ -1673,6 +1681,15 @@ msgstr "Methodenaufruf aktualisiert"
 #, python-brace-format
 msgid "Error {current}/{total}: Line {line} - {msg}"
 msgstr "Fehler {current}/{total}: Zeile {line} - {msg}"
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:4315
+#, python-brace-format
+msgid "Saved {saved} file(s). {failed} file(s) failed or were cancelled."
+msgstr "Gespeichert: {saved} Datei(en). {failed} Datei(en) fehlgeschlagen oder abgebrochen."
+
+#: addon/globalPlugins/scriptmanager/sm_frontend.py:4323
+msgid "All files saved successfully."
+msgstr "Alle Dateien erfolgreich gespeichert."
 
 #: buildVars.py:20
 msgid ""
