@@ -2694,13 +2694,34 @@ class scriptmanager_mainwindow(wx.Frame):
             return label or default_name
         return _("untitled")
 
-    def _update_tab_label(self, editor):
-        if not hasattr(self, "notebook"):
-            return
+    def _get_notebook_page_index(self, editor):
+        notebook = getattr(self, "notebook", None)
+        if notebook is None or editor is None:
+            return -1
+        if hasattr(notebook, "GetPageIndex"):
+            try:
+                return notebook.GetPageIndex(editor)
+            except Exception:
+                pass
+        if hasattr(notebook, "FindPage"):
+            try:
+                return notebook.FindPage(editor)
+            except Exception:
+                pass
         try:
-            page_index = self.notebook.GetPageIndex(editor)
+            page_count = notebook.GetPageCount()
         except Exception:
-            page_index = -1
+            return -1
+        for index in range(page_count):
+            try:
+                if notebook.GetPage(index) is editor:
+                    return index
+            except Exception:
+                continue
+        return -1
+
+    def _update_tab_label(self, editor):
+        page_index = self._get_notebook_page_index(editor)
         if page_index < 0:
             return
         label = self._get_editor_title_filename(editor)
