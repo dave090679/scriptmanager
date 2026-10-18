@@ -25,7 +25,7 @@ addon_info = {
 	"addon-author": "David Parduhn <xkill85@gmx.net>",
 	# URL for the add-on documentation support
 	"addon-url": None,
-	"lastTestedNVDAVersion": "2025.3.3"
+	"lastTestedNVDAVersion": "2026.2"
 }
 
 import os.path
