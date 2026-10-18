@@ -40,6 +40,7 @@ SCRATCHPAD_REQUIRED_SUBDIRS = (
 	'appModules',
 	'globalPlugins',
 	'brailleDisplayDrivers',
+	'brailleTables',
 	'synthDrivers',
 	'visionEnhancementProviders',
 )
@@ -471,7 +472,32 @@ def get_running_application_names(include_focus=True):
 	return sorted(names, key=lambda value: value.lower())
 
 
+def _create_braille_table_template():
+	lines = [
+		'# ' + _('Custom braille table for NVDA (liblouis syntax)'),
+		'# ' + _('Save this file with the extension .ctb (contracted), .utb (uncontracted) or .tbl in the brailleTables folder of the scratchpad.'),
+		'# ' + _('To make the table available in an add-on, declare it in the [brailleTables] section of the add-on manifest.'),
+		'',
+		'# ' + _('Include other tables, for example:'),
+		'#include en-ueb-g1.ctb',
+		'',
+		'# ' + _('Define characters, for example:'),
+		'#sign a 1',
+		'',
+	]
+	return os.linesep.join(lines)
+
+
 def createnewmodule(moduletype, modulename, createfile):
+	if moduletype == 'brailleTable':
+		text = _create_braille_table_template()
+		if createfile:
+			userconfigfile = os.path.join(get_scratchpad_subdir('brailleTables'), modulename + '.ctb')
+			with open(userconfigfile, 'w', encoding='utf-8') as fd1:
+				fd1.write(text)
+			ui.message(_('Creating a new {moduletype}  {modulename}').format(moduletype=moduletype, modulename=modulename))
+			return None
+		return text
 	l = moduletype[0].lower()
 	u = moduletype[0].upper()
 	module_template = [
@@ -738,7 +764,53 @@ def get_default_addon_manifest_data():
 		'addon_updateChannel': '',
 		'addon_license': '',
 		'addon_licenseURL': '',
+		'addon_brailleTables': '',
+		'addon_symbolDictionaries': '',
+		'addon_speechDictionaries': '',
 	}
+
+
+def _parse_manifest_file_entries(text, allowed_flags):
+	"""Parse lines of the form ``fileName|displayName[|flag...]``.
+
+	Returns a list of (fileName, displayName, flags) tuples.
+	Raises ValueError with the offending line number on malformed input.
+	"""
+	entries = []
+	for line_number, raw_line in enumerate(str(text or '').splitlines(), 1):
+		line = raw_line.strip()
+		if not line:
+			continue
+		parts = [part.strip() for part in line.split('|')]
+		if len(parts) < 2 or not parts[0] or not parts[1]:
+			raise ValueError(line_number)
+		flags = set(flag.lower() for flag in parts[2:] if flag)
+		if not flags.issubset(allowed_flags):
+			raise ValueError(line_number)
+		entries.append((parts[0], parts[1], flags))
+	return entries
+
+
+BRAILLE_TABLE_FLAGS = ('contracted', 'noinput', 'nooutput')
+DICTIONARY_FLAGS = ('mandatory',)
+
+
+def parse_braille_table_entries(text):
+	return _parse_manifest_file_entries(text, BRAILLE_TABLE_FLAGS)
+
+
+def parse_dictionary_entries(text):
+	return _parse_manifest_file_entries(text, DICTIONARY_FLAGS)
+
+
+def _manifest_section_lines(section, entries, flag_values):
+	lines = ['[{section}]'.format(section=section)]
+	for file_name, display_name, flags in entries:
+		lines.append('\t[[{name}]]'.format(name=file_name))
+		lines.append('\t\tdisplayName = {name}'.format(name=_quote_manifest_string(display_name)))
+		for key, value in flag_values(flags):
+			lines.append('\t\t{key} = {value}'.format(key=key, value=value))
+	return lines
 
 
 def prepare_addon_build(manifest_data, output_path):
@@ -873,10 +945,42 @@ def _write_runtime_manifest(addon_dir, manifest_data):
 		'minimumNVDAVersion = {version}'.format(version=manifest_data['addon_minimumNVDAVersion']),
 		'lastTestedNVDAVersion = {version}'.format(version=manifest_data['addon_lastTestedNVDAVersion']),
 	]
+	if manifest_data['addon_changelog']:
+		manifest_lines.append('changelog = {changelog}'.format(changelog=_quote_manifest_multiline(manifest_data['addon_changelog'])))
 	if manifest_data['addon_url']:
 		manifest_lines.append('url = {url}'.format(url=_quote_manifest_string(manifest_data['addon_url'])))
 	if manifest_data['addon_docFileName']:
 		manifest_lines.append('docFileName = {doc}'.format(doc=_quote_manifest_string(manifest_data['addon_docFileName'])))
+	for key, field in (
+		('sourceURL', 'addon_sourceURL'),
+		('updateChannel', 'addon_updateChannel'),
+		('license', 'addon_license'),
+		('licenseURL', 'addon_licenseURL'),
+	):
+		if manifest_data.get(field):
+			manifest_lines.append('{key} = {value}'.format(key=key, value=_quote_manifest_string(manifest_data[field])))
+	braille_entries = parse_braille_table_entries(manifest_data.get('addon_brailleTables'))
+	if braille_entries:
+		manifest_lines.extend(_manifest_section_lines(
+			'brailleTables',
+			braille_entries,
+			lambda flags: (
+				('contracted', 'true' if 'contracted' in flags else 'false'),
+				('input', 'false' if 'noinput' in flags else 'true'),
+				('output', 'false' if 'nooutput' in flags else 'true'),
+			),
+		))
+	for section, field in (
+		('symbolDictionaries', 'addon_symbolDictionaries'),
+		('speechDictionaries', 'addon_speechDictionaries'),
+	):
+		dictionary_entries = parse_dictionary_entries(manifest_data.get(field))
+		if dictionary_entries:
+			manifest_lines.extend(_manifest_section_lines(
+				section,
+				dictionary_entries,
+				lambda flags: (('mandatory', 'true' if 'mandatory' in flags else 'false'),),
+			))
 	manifest_path = os.path.join(addon_dir, addonHandler.MANIFEST_FILENAME)
 	with open(manifest_path, 'w', encoding='utf-8') as manifest_file:
 		manifest_file.write('\n'.join(manifest_lines) + '\n')

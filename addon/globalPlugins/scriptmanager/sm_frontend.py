@@ -1595,6 +1595,27 @@ class addonmanifestdialog(wx.Dialog):
         self.addon_license_url_ctrl = sHelper.addLabeledControl(
             _("License U&RL:"), wx.TextCtrl, value=self.manifest_data["addon_licenseURL"]
         )
+        self.addon_braille_tables_ctrl = sHelper.addLabeledControl(
+            _("Braille &tables (one per line: file name|display name[|contracted][|noinput][|nooutput]):"),
+            wx.TextCtrl,
+            value=self.manifest_data["addon_brailleTables"],
+            style=wx.TE_MULTILINE,
+        )
+        self.addon_braille_tables_ctrl.SetMinSize((420, 60))
+        self.addon_symbol_dictionaries_ctrl = sHelper.addLabeledControl(
+            _("Symbol &dictionaries (one per line: file name|display name[|mandatory]):"),
+            wx.TextCtrl,
+            value=self.manifest_data["addon_symbolDictionaries"],
+            style=wx.TE_MULTILINE,
+        )
+        self.addon_symbol_dictionaries_ctrl.SetMinSize((420, 60))
+        self.addon_speech_dictionaries_ctrl = sHelper.addLabeledControl(
+            _("S&peech dictionaries (one per line: file name|display name[|mandatory]):"),
+            wx.TextCtrl,
+            value=self.manifest_data["addon_speechDictionaries"],
+            style=wx.TE_MULTILINE,
+        )
+        self.addon_speech_dictionaries_ctrl.SetMinSize((420, 60))
 
         panelSizer.Add(
             sHelper.sizer,
@@ -1633,6 +1654,9 @@ class addonmanifestdialog(wx.Dialog):
             "addon_updateChannel": self.addon_update_channel_ctrl.GetValue().strip(),
             "addon_license": self.addon_license_ctrl.GetValue().strip(),
             "addon_licenseURL": self.addon_license_url_ctrl.GetValue().strip(),
+            "addon_brailleTables": self.addon_braille_tables_ctrl.GetValue().strip(),
+            "addon_symbolDictionaries": self.addon_symbol_dictionaries_ctrl.GetValue().strip(),
+            "addon_speechDictionaries": self.addon_speech_dictionaries_ctrl.GetValue().strip(),
         }
 
         validation_error = self._validate_manifest_data(manifest_data)
@@ -1676,6 +1700,20 @@ class addonmanifestdialog(wx.Dialog):
             if value and not value.startswith("https://"):
                 ctrl.SetFocus()
                 return _("URLs should start with https://.")
+
+        for ctrl, parser in (
+            (self.addon_braille_tables_ctrl, sm_backend.parse_braille_table_entries),
+            (self.addon_symbol_dictionaries_ctrl, sm_backend.parse_dictionary_entries),
+            (self.addon_speech_dictionaries_ctrl, sm_backend.parse_dictionary_entries),
+        ):
+            field_text = ctrl.GetValue()
+            try:
+                parser(field_text)
+            except ValueError as error:
+                ctrl.SetFocus()
+                return _("Invalid entry in line {line}. Expected format: file name|display name, optionally followed by flags.").format(
+                    line=error.args[0]
+                )
 
         try:
             minimum_version = addonAPIVersion.getAPIVersionTupleFromString(
@@ -2228,11 +2266,12 @@ class scriptmanager_mainwindow(wx.Frame):
     ID_SAVE_ALL_FILES = 109
     TAB_MENU_ID_BASE = 8000
 
-    SCRATCHPAD_REQUIRED_MENU_IDS = (104, 111, 112, 113, 114, 115)
+    SCRATCHPAD_REQUIRED_MENU_IDS = (104, 111, 112, 113, 114, 115, 116)
     _SCRATCHPAD_SUBDIR_BY_FILE_TYPE = {
         "appModule": "appModules",
         "globalPlugin": "globalPlugins",
         "brailleDisplayDriver": "brailleDisplayDrivers",
+        "brailleTable": "brailleTables",
         "synthDriver": "synthDrivers",
         "visionEnhancementProvider": "visionEnhancementProviders",
     }
@@ -2241,6 +2280,7 @@ class scriptmanager_mainwindow(wx.Frame):
         "appModule": _("&appmodule"),
         "globalPlugin": _("&global plugin"),
         "brailleDisplayDriver": _("&braille display driver"),
+        "brailleTable": _("braille &table"),
         "synthDriver": _("&speech synthesizer driver"),
         "visionEnhancementProvider": _("&visual enhancement provider"),
     }
@@ -2296,6 +2336,7 @@ class scriptmanager_mainwindow(wx.Frame):
         filenew.Append(113, _("&braille display driver"))
         filenew.Append(114, _("&speech synthesizer driver"))
         filenew.Append(115, _("&visual enhancement provider"))
+        filenew.Append(116, _("braille &table"))
         edit.Append(200, _("&undo\tctrl+z"))
         edit.Append(212, _("&redo\tctrl+y"))
         edit.Append(201, _("cu&t\tctrl+x"))
@@ -2396,6 +2437,7 @@ class scriptmanager_mainwindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnNewBrailleDisplayDriver, id=113)
         self.Bind(wx.EVT_MENU, self.OnNewSynthDriver, id=114)
         self.Bind(wx.EVT_MENU, self.OnNewVisionEnhancementProvider, id=115)
+        self.Bind(wx.EVT_MENU, self.OnNewBrailleTable, id=116)
         self.Bind(wx.EVT_MENU, self.OnOpenFile, id=self.ID_OPEN_FILE)
         self.Bind(wx.EVT_MENU, self.OnSaveFile, id=self.ID_SAVE_FILE)
         self.Bind(wx.EVT_MENU, self.OnSaveAllFiles, id=self.ID_SAVE_ALL_FILES)
@@ -3269,6 +3311,15 @@ class scriptmanager_mainwindow(wx.Frame):
             content=sm_backend.createnewmodule(
                 "visionEnhancementProvider", _("untitled"), False
             ),
+        )
+
+    def OnNewBrailleTable(self, event):
+        if not self._ensure_scratchpad_for_action(_("Creating braille tables requires scratchpad.")):
+            return
+        self._create_new_editor_tab(
+            file_type="brailleTable",
+            default_file=_("untitled") + ".ctb",
+            content=sm_backend.createnewmodule("brailleTable", _("untitled"), False),
         )
 
     def DoNewEmptyFile(self):
@@ -4350,7 +4401,8 @@ class scriptmanager_mainwindow(wx.Frame):
 
     def OnSaveAsFile(self, event):
         wcd = (
-            _("All files(*.*)") + "|*.*|" + _("appmodule source files (*.py)") + "|*.py"
+            _("All files(*.*)") + "|*.*|" + _("appmodule source files (*.py)") + "|*.py|"
+            + _("braille tables (*.ctb;*.utb;*.tbl)") + "|*.ctb;*.utb;*.tbl"
         )
         if self.last_name_saved:
             default_dir = os.path.dirname(self.last_name_saved)
